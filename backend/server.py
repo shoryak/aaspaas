@@ -15,6 +15,7 @@ from lib.db import client, db, ensure_indexes
 from models.aaspaas import IdeaResponse
 from routers.analytics import router as analytics_router
 from routers.discovery import router as discovery_router
+from routers.engagement import router as engagement_router
 
 
 @asynccontextmanager
@@ -34,6 +35,7 @@ async def root():
 
 
 api_router.include_router(discovery_router)
+api_router.include_router(engagement_router)
 api_router.include_router(analytics_router)
 
 app.add_middleware(

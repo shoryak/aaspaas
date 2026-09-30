@@ -27,6 +27,18 @@ INDEXES: dict[str, list[IndexModel]] = {
     "sessions": [IndexModel([("id", ASCENDING)], name="session_id", unique=True)],
     "gut_checks": [IndexModel([("idea_id", ASCENDING), ("ticker", ASCENDING)], name="gut_check_lookup")],
     "share_events": [IndexModel([("idea_id", ASCENDING)], name="share_idea")],
+    "engagement_events": [
+        IndexModel([("event_name", ASCENDING), ("created_at", DESCENDING)], name="event_time"),
+        IndexModel([("session_id", ASCENDING), ("created_at", DESCENDING)], name="event_session"),
+    ],
+    "submission_attempts": [
+        IndexModel([("day", ASCENDING), ("session_id", ASCENDING)], name="daily_session_limit"),
+        IndexModel([("day", ASCENDING), ("ip_fingerprint", ASCENDING)], name="daily_ip_limit"),
+    ],
+    "finance_cache": [IndexModel([("symbol", ASCENDING)], name="finance_symbol", unique=True)],
+    "historical_cache": [IndexModel([("symbol", ASCENDING)], name="history_symbol", unique=True)],
+    "email_interests": [IndexModel([("email", ASCENDING), ("session_id", ASCENDING)], name="email_session", unique=True)],
+    "product_interests": [IndexModel([("kind", ASCENDING), ("created_at", DESCENDING)], name="interest_time")],
 }
 
 

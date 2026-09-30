@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import os
 import re
@@ -7,8 +6,10 @@ import uuid
 from datetime import datetime, timezone
 
 import httpx
-from emergentintegrations.llm.chat import LlmChat, StreamDone, TextDelta, UserMessage
 from fastapi import APIRouter, HTTPException, Request, Response
+from google import genai
+from google.genai import types
+from google.oauth2 import service_account
 
 from lib.db import db
 from models.aaspaas import (
@@ -152,8 +153,11 @@ def _json_from_text(text: str) -> dict:
 
 
 async def _discover(observation: str, idea_id: str) -> tuple[DiscoveryResponse, bool]:
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    service_account_json = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    location = os.environ.get("VERTEX_LOCATION", "us-central1")
+    model = os.environ.get("VERTEX_MODEL", "gemini-2.5-flash")
+    if not service_account_json or not project_id:
         return _fallback_discovery(observation), True
     system_message = """You are Aaspaas, an educational Indian equity research guide. Follow the user's observation to real companies listed on NSE or BSE. Never give buy/sell advice, price targets, or invented financial numbers. Prefer a non-obvious supplier, platform, or ancillary company when it is genuinely exposed. If no real listed company maps, return an empty companies array. Return ONLY valid JSON matching the requested schema."""
     prompt = f"""Observation from a reader: {observation}
@@ -169,16 +173,38 @@ Identify 3 or 4 genuinely exposed Indian listed companies, or zero if the observ
 - scorecard: exactly these four axes, each score 1-5 and a one-line rationale: moat, capital_allocation, management, growth_runway
 
 JSON shape: {{"companies":[{{"company_name":"...","ticker":"...","exchange":"NSE","connection":"...","business_model":"...","risk":"...","verify_tip":"...","gut_check_question":"...","gut_check_lean":"yes","scorecard":[{{"key":"moat","label":"Moat & pricing power","score":1,"rationale":"..."}},{{"key":"capital_allocation","label":"Capital allocation discipline","score":1,"rationale":"..."}},{{"key":"management","label":"Management quality","score":1,"rationale":"..."}},{{"key":"growth_runway","label":"Growth runway","score":1,"rationale":"..."}}]}}]}}"""
-    chat = LlmChat(api_key=api_key, session_id=f"aaspaas-{idea_id}", system_message=system_message).with_model("openai", "gpt-5.4")
     chunks: list[str] = []
+    client = None
     try:
-        async for event in chat.stream_message(UserMessage(text=prompt)):
-            if isinstance(event, TextDelta):
-                chunks.append(event.content)
-            elif isinstance(event, StreamDone):
-                break
+        credentials = service_account.Credentials.from_service_account_info(
+            json.loads(service_account_json),
+            scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        )
+        client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=location,
+            credentials=credentials,
+            http_options=types.HttpOptions(api_version="v1"),
+        )
+        stream = await client.aio.models.generate_content_stream(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_message,
+                temperature=0.2,
+                max_output_tokens=6000,
+                response_mime_type="application/json",
+            ),
+        )
+        async for chunk in stream:
+            if chunk.text:
+                chunks.append(chunk.text)
     except Exception:
         return _fallback_discovery(observation), True
+    finally:
+        if client is not None:
+            await client.aio.aclose()
     try:
         return DiscoveryResponse.model_validate(_json_from_text("".join(chunks))), False
     except Exception:

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRight, BookOpen, Moon, Quote, Share2, Sparkles, Sun } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { EmailCapture } from "@/components/EmailCapture";
@@ -26,13 +27,32 @@ const WAITING_NOTES = [
 
 interface LimitDetail { message: string; reset_at: string; daily_limit: number }
 
-function waitingCopy(index: number) { return WAITING_NOTES[index % WAITING_NOTES.length]; }
+const NOTE_MS = 7000;
+const WAITING_STEPS = ["Mapping real NSE/BSE exposure", "Separating judgment from sourced data", "Preparing the companies while evidence follows"];
+const EASE = [0.22, 1, 0.36, 1] as const;
 
 function WaitingView({ observation }: { observation: string }) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => { const timer = window.setInterval(() => setIndex((value) => value + 1), 2300); return () => window.clearInterval(timer); }, []);
-  const note = waitingCopy(index);
-  return <main className="waiting-page" data-testid="discovery-waiting-page"><div className="waiting-orbit" aria-hidden="true"><i /><i /><i /></div><span className="mono-label" data-testid="waiting-kicker">FOLLOWING YOUR CLUE</span><h1 data-testid="waiting-title">“{observation}”</h1><div className="waiting-note" key={note[0]} data-testid="waiting-note"><strong>{note[0]}</strong><p>{note[1]}</p></div><div className="waiting-checks" data-testid="waiting-checks"><span>01 · mapping real NSE/BSE exposure</span><span>02 · separating judgment from sourced data</span><span>03 · preparing the first company while evidence follows</span></div></main>;
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => { const started = Date.now(); const timer = window.setInterval(() => setElapsed(Date.now() - started), 250); return () => window.clearInterval(timer); }, []);
+  const index = Math.floor(elapsed / NOTE_MS) % WAITING_NOTES.length;
+  const [title, copy] = WAITING_NOTES[index];
+  const step = elapsed < 5000 ? 0 : elapsed < 12000 ? 1 : 2;
+  return <main className="waiting-page" data-testid="discovery-waiting-page"><div className="waiting-orbit" aria-hidden="true"><i /><i /><i /></div>
+    <motion.span className="mono-label" data-testid="waiting-kicker" initial={{ opacity: 0, letterSpacing: "0.4em" }} animate={{ opacity: 1, letterSpacing: "0.13em" }} transition={{ duration: 0.9, ease: EASE }}>FOLLOWING YOUR CLUE</motion.span>
+    <motion.h1 data-testid="waiting-title" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.1, ease: EASE }}>“{observation}”</motion.h1>
+    <div className="waiting-note-stage">
+      <AnimatePresence mode="wait">
+        <motion.div className="waiting-note" key={index} data-testid="waiting-note" initial={{ opacity: 0, y: 22, scale: 0.97, filter: "blur(8px)" }} animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }} exit={{ opacity: 0, y: -18, scale: 0.98, filter: "blur(8px)" }} transition={{ duration: 0.7, ease: EASE }}>
+          <span className="waiting-note-count" data-testid="waiting-note-count">{`LESSON 0${index + 1} / 0${WAITING_NOTES.length}`}</span>
+          <motion.strong initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.25, ease: EASE }} data-testid="waiting-note-title">{title}</motion.strong>
+          <motion.p initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.45, ease: EASE }} data-testid="waiting-note-copy">{copy}</motion.p>
+          <div className="waiting-note-progress" aria-hidden="true"><i style={{ animationDuration: `${NOTE_MS}ms` }} /></div>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+    <div className="waiting-dots" aria-hidden="true" data-testid="waiting-dots">{WAITING_NOTES.map((note, dot) => <i key={note[0]} className={dot === index ? "active" : ""} />)}</div>
+    <div className="waiting-checks" data-testid="waiting-checks">{WAITING_STEPS.map((label, stepIndex) => <span key={label} className={stepIndex < step ? "done" : stepIndex === step ? "active" : ""} data-testid={`waiting-step-${stepIndex + 1}`}><i />{`0${stepIndex + 1} · ${label}`}</span>)}</div>
+  </main>;
 }
 
 function NoMatch({ observation, onTryAgain }: { observation: string; onTryAgain: () => void }) {

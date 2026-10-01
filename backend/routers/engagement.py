@@ -39,6 +39,7 @@ async def get_idea(idea_id: str, request: Request, response: Response, shared: b
     idea = await db.ideas.find_one(query)
     if not idea:
         raise HTTPException(status_code=404, detail="Discovery not found")
+    idea.setdefault("discovery_mode", "curated_fallback")
     return IdeaResponse(**idea)
 
 

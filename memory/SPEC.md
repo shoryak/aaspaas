@@ -14,8 +14,8 @@ Aaspaas is an educational Indian stock-discovery experience based on “invest i
 - `email_interests`: consented update interest linked internally to the anonymous session; email does not unlock a journal.
 
 ## Key flows
-1. Landing → submit observation (maximum three starts per UTC day by session and daily IP fingerprint) → rotating educational waiting view → Vertex AI company discovery.
-2. Results open with “How these stocks travelled”: AI-relevance-ordered performance cards, shared 1Y/3Y/5Y control, adjusted-price mini charts, total movement, period drawdown, dates, Yahoo status, and honest unavailable states. Price movement is explicitly separated from business quality and never ranked.
+1. Landing → submit observation (maximum three starts per UTC day by session and daily IP fingerprint) → educational waiting view (lesson cards rotate every 7s with motion cross-fade, progress bar, step indicators) → Vertex AI company discovery.
+2. Results open with “How these stocks travelled”: a combined overlay chart (all companies rebased to 0% for the shared period, hover/tap tooltip with % and ₹ per stock, legend toggles to hide/show a line), then AI-relevance-ordered performance cards, shared 1Y/3Y/5Y control, per-company ₹ adjusted-price mini charts with high/low labels and start→end share price, total movement, period drawdown, dates, Yahoo status, and honest unavailable states. Price movement is explicitly separated from business quality and never ranked.
 3. The sortable business-quality comparison follows directly below with connection copy, mini quality pips, P/E, and market cap. Both performance and business cards expose separate “Explore details” and optional “Test your intuition” actions.
 4. Company details remain menu-driven: standout strengths, risks, business model, full scorecard, verified stock journey, research/Screener handoff, or optional instinct game in any order; nothing is gated. An answered/skipped game exits to details or all companies.
 5. Recap → learning-style snapshot, score comparison, optional sharing, optional update consent, and clearly inactive broker-interest placeholder.

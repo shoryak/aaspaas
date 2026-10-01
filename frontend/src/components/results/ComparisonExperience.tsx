@@ -8,13 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useEngagement } from "@/hooks/useEngagement";
 import { apiGet, apiPost } from "@/lib/api";
+import { downsample, periodStats, pointsForPeriod, rupees, signedPercent, slug } from "@/lib/performance";
+import type { PeriodKey } from "@/lib/performance";
+import { PerformanceOverlayChart } from "@/components/results/PerformanceOverlayChart";
 import type { AnswerRecord, CompanyInsight, EnrichmentResponse, IdeaResponse, PricePoint, ScoreAxis } from "@/lib/types";
 
 type SortKey = "quality" | "moat" | "pe" | "market_cap";
 type DetailSection = "standout" | "risk" | "model" | "scorecard" | "market" | "verify" | "instinct";
-type PeriodKey = "1Y" | "3Y" | "5Y";
 
-const slug = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 const averageScore = (company: CompanyInsight) => company.scorecard.reduce((sum, axis) => sum + axis.score, 0) / Math.max(company.scorecard.length, 1);
 const axisScore = (company: CompanyInsight, key: ScoreAxis["key"]) => company.scorecard.find((axis) => axis.key === key)?.score ?? 0;
 const marketCap = (value: number | null) => value === null ? "—" : new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(value);
@@ -45,61 +46,38 @@ function ComparisonCard({ company, rank, loading, onExplore, onIntuition }: { co
   </article>;
 }
 
-function pointsForPeriod(points: PricePoint[], period: PeriodKey) {
-  if (points.length < 2) return points;
-  const latest = new Date(`${points[points.length - 1].date}T00:00:00Z`);
-  const years = period === "1Y" ? 1 : period === "3Y" ? 3 : 5;
-  const cutoff = new Date(latest);
-  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - years);
-  const filtered = points.filter((point) => new Date(`${point.date}T00:00:00Z`) >= cutoff);
-  return filtered.length >= 2 ? filtered : points;
+function PerformanceMiniChart({ points, ticker }: { points: PricePoint[]; ticker: string }) {
+  const chart = useMemo(() => {
+    if (points.length < 2) return null;
+    const sampled = downsample(points, 110);
+    const values = sampled.map((point) => point.adjusted_close);
+    const low = Math.min(...values), high = Math.max(...values), spread = Math.max(high - low, high * .01);
+    const coords = sampled.map((point, index) => [(index / (sampled.length - 1)) * 320, 96 - ((point.adjusted_close - low) / spread) * 80] as const);
+    const line = coords.map(([cx, cy], index) => `${index === 0 ? "M" : "L"}${cx.toFixed(1)},${cy.toFixed(1)}`).join(" ");
+    return { line, area: `${line} L320,112 L0,112 Z`, low, high, end: coords[coords.length - 1] };
+  }, [points]);
+  if (!chart) return null;
+  const fillId = `mini-fill-${slug(ticker)}`;
+  return <svg className="performance-mini-chart" viewBox="0 0 320 116" role="img" aria-label={`${ticker} adjusted share price in rupees`} data-testid={`performance-chart-${slug(ticker)}`}>
+    <defs><linearGradient id={fillId} x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#e0a35a" stopOpacity=".28" /><stop offset="100%" stopColor="#e0a35a" stopOpacity="0" /></linearGradient></defs>
+    <path className="performance-chart-grid" d="M0 16 H320 M0 56 H320 M0 96 H320" />
+    <path className="performance-chart-area" d={chart.area} fill={`url(#${fillId})`} />
+    <path className="performance-chart-line" d={chart.line} pathLength={1} />
+    <circle className="performance-chart-end" cx={chart.end[0]} cy={chart.end[1]} r={3.2} />
+    <text className="performance-chart-label" x={2} y={11} data-testid={`performance-chart-high-${slug(ticker)}`}>{`HIGH ${rupees(chart.high)}`}</text>
+    <text className="performance-chart-label" x={2} y={110} data-testid={`performance-chart-low-${slug(ticker)}`}>{`LOW ${rupees(chart.low)}`}</text>
+  </svg>;
 }
 
-function periodStats(points: PricePoint[]) {
-  if (points.length < 2) return null;
-  const first = points[0], last = points[points.length - 1];
-  const movement = (last.adjusted_close / first.adjusted_close - 1) * 100;
-  let peak = first.adjusted_close, drawdown = 0;
-  for (const point of points) {
-    peak = Math.max(peak, point.adjusted_close);
-    drawdown = Math.min(drawdown, (point.adjusted_close / peak - 1) * 100);
-  }
-  return { movement, drawdown, start: first.date, end: last.date };
-}
-
-function PerformanceMiniChart({ points, ticker, globalMin, globalMax }: { points: PricePoint[]; ticker: string; globalMin: number; globalMax: number }) {
-  const path = useMemo(() => {
-    if (points.length < 2) return "";
-    const sampled = points.filter((_, index) => index % Math.max(1, Math.floor(points.length / 90)) === 0 || index === points.length - 1);
-    const base = sampled[0].adjusted_close;
-    const spread = Math.max(globalMax - globalMin, 1);
-    return sampled.map((point, index) => {
-      const normalized = (point.adjusted_close / base - 1) * 100;
-      const x = (index / Math.max(sampled.length - 1, 1)) * 320;
-      const y = 102 - ((normalized - globalMin) / spread) * 88;
-      return `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-    }).join(" ");
-  }, [points, globalMin, globalMax]);
-  return <svg className="performance-mini-chart" viewBox="0 0 320 116" role="img" aria-label={`${ticker} adjusted-price journey`} data-testid={`performance-chart-${slug(ticker)}`}><path className="performance-chart-grid" d="M0 14 H320 M0 58 H320 M0 102 H320" /><path className="performance-chart-line" d={path} /></svg>;
-}
-
-function PerformanceCard({ company, period, globalMin, globalMax, loading, onExplore, onIntuition }: { company: CompanyInsight; period: PeriodKey; globalMin: number; globalMax: number; loading: boolean; onExplore: () => void; onIntuition: () => void }) {
+function PerformanceCard({ company, period, loading, onExplore, onIntuition }: { company: CompanyInsight; period: PeriodKey; loading: boolean; onExplore: () => void; onIntuition: () => void }) {
   const points = pointsForPeriod(company.historical.points, period);
   const stats = periodStats(points);
-  return <article className="performance-card" data-testid={`performance-card-${slug(company.ticker)}`}><div className="performance-card-top"><div><span className="performance-ticker" data-testid={`performance-ticker-${slug(company.ticker)}`}>{company.exchange} · {company.ticker}</span><h3 data-testid={`performance-name-${slug(company.ticker)}`}>{company.company_name}</h3></div><Badge className={`status-badge status-${company.historical.status}`} data-testid={`performance-status-${slug(company.ticker)}`}>{company.historical.status}</Badge></div>{loading ? <div className="performance-skeleton" data-testid={`performance-loading-${slug(company.ticker)}`}><i /><i /><i /></div> : stats && company.historical.available ? <><PerformanceMiniChart points={points} ticker={company.ticker} globalMin={globalMin} globalMax={globalMax} /><div className="performance-stat-row"><div><span>Total adjusted movement</span><strong className={stats.movement >= 0 ? "movement-positive" : "movement-negative"} data-testid={`performance-movement-${slug(company.ticker)}`}>{stats.movement >= 0 ? "+" : ""}{stats.movement.toFixed(1)}%</strong></div><div><span>Maximum drawdown</span><strong className="movement-negative" data-testid={`performance-drawdown-${slug(company.ticker)}`}>{stats.drawdown.toFixed(1)}%</strong></div></div><div className="performance-dates" data-testid={`performance-dates-${slug(company.ticker)}`}><span>{stats.start}</span><ArrowRight size={12} /><span>{stats.end}</span></div></> : <div className="performance-unavailable" data-testid={`performance-unavailable-${slug(company.ticker)}`}><BarChart3 size={22} /><strong>Price history unavailable</strong><p>No movement is estimated. Business context remains available below.</p></div>}<p className="performance-source" data-testid={`performance-source-${slug(company.ticker)}`}>Yahoo Finance · adjusted close · as of {company.historical.as_of ?? "unavailable"}</p><div className="company-card-actions performance-actions" data-testid={`performance-actions-${slug(company.ticker)}`}><Button type="button" onClick={onExplore} data-testid={`performance-explore-${slug(company.ticker)}`}>Explore details <ArrowRight size={14} /></Button><Button type="button" variant="outline" onClick={onIntuition} data-testid={`performance-intuition-${slug(company.ticker)}`}>Test your intuition <Target size={14} /></Button></div></article>;
+  return <article className="performance-card" data-testid={`performance-card-${slug(company.ticker)}`}><div className="performance-card-top"><div><span className="performance-ticker" data-testid={`performance-ticker-${slug(company.ticker)}`}>{company.exchange} · {company.ticker}</span><h3 data-testid={`performance-name-${slug(company.ticker)}`}>{company.company_name}</h3></div><Badge className={`status-badge status-${company.historical.status}`} data-testid={`performance-status-${slug(company.ticker)}`}>{company.historical.status}</Badge></div>{loading ? <div className="performance-skeleton" data-testid={`performance-loading-${slug(company.ticker)}`}><i /><i /><i /></div> : stats && company.historical.available ? <><PerformanceMiniChart key={period} points={points} ticker={company.ticker} /><div className="performance-price-row" data-testid={`performance-prices-${slug(company.ticker)}`}><span>Share price</span><strong>{rupees(stats.startPrice)}</strong><ArrowRight size={13} /><strong>{rupees(stats.endPrice)}</strong></div><div className="performance-stat-row"><div><span>Total adjusted movement</span><strong className={stats.movement >= 0 ? "movement-positive" : "movement-negative"} data-testid={`performance-movement-${slug(company.ticker)}`}>{signedPercent(stats.movement)}</strong></div><div><span>Maximum drawdown</span><strong className="movement-negative" data-testid={`performance-drawdown-${slug(company.ticker)}`}>{`${stats.drawdown.toFixed(1)}%`}</strong></div></div><div className="performance-dates" data-testid={`performance-dates-${slug(company.ticker)}`}><span>{stats.start}</span><ArrowRight size={12} /><span>{stats.end}</span></div></> : <div className="performance-unavailable" data-testid={`performance-unavailable-${slug(company.ticker)}`}><BarChart3 size={22} /><strong>Price history unavailable</strong><p>No movement is estimated. Business context remains available below.</p></div>}<p className="performance-source" data-testid={`performance-source-${slug(company.ticker)}`}>Yahoo Finance · adjusted close in ₹ · as of {company.historical.as_of ?? "unavailable"}</p><div className="company-card-actions performance-actions" data-testid={`performance-actions-${slug(company.ticker)}`}><Button type="button" onClick={onExplore} data-testid={`performance-explore-${slug(company.ticker)}`}>Explore details <ArrowRight size={14} /></Button><Button type="button" variant="outline" onClick={onIntuition} data-testid={`performance-intuition-${slug(company.ticker)}`}>Test your intuition <Target size={14} /></Button></div></article>;
 }
 
 function PerformanceSection({ companies, loading, onExplore, onIntuition, onPeriodChange }: { companies: CompanyInsight[]; loading: boolean[]; onExplore: (ticker: string) => void; onIntuition: (ticker: string) => void; onPeriodChange: (period: PeriodKey) => void }) {
   const [period, setPeriod] = useState<PeriodKey>("5Y");
-  const normalized = companies.flatMap((company) => {
-    const points = pointsForPeriod(company.historical.points, period);
-    if (points.length < 2) return [];
-    const base = points[0].adjusted_close;
-    return points.map((point) => (point.adjusted_close / base - 1) * 100);
-  });
-  const globalMin = normalized.length ? Math.min(...normalized) : -10;
-  const globalMax = normalized.length ? Math.max(...normalized) : 10;
-  return <section className="performance-section" data-testid="performance-section"><div className="performance-section-heading"><div><span className="mono-label" data-testid="performance-kicker">VERIFIED MARKET CONTEXT · NOT A RANKING</span><h2 data-testid="performance-title">How these stocks<br /><em>travelled.</em></h2><p data-testid="performance-intro">Adjusted-price history can spark a question. It cannot prove business quality, predict future returns, or tell you to buy or sell.</p></div><div className="performance-period-control" data-testid="performance-period-control"><span>Shared period</span><div>{(["1Y", "3Y", "5Y"] as PeriodKey[]).map((option) => <button type="button" className={period === option ? "active" : ""} onClick={() => { setPeriod(option); onPeriodChange(option); }} key={option} data-testid={`performance-period-${option.toLowerCase()}`}>{option}</button>)}</div></div></div><div className="performance-grid" data-testid="performance-grid">{companies.map((company, index) => <PerformanceCard key={company.id} company={company} period={period} globalMin={globalMin} globalMax={globalMax} loading={loading[index]} onExplore={() => onExplore(company.ticker)} onIntuition={() => onIntuition(company.ticker)} />)}</div><p className="performance-disclaimer" data-testid="performance-disclaimer">Source: Yahoo Finance daily adjusted close. Dividends and splits returned by the source remain visible in each company’s Stock journey detail. Historical movement is educational context—not a recommendation.</p></section>;
+  return <section className="performance-section" data-testid="performance-section"><div className="performance-section-heading"><div><span className="mono-label" data-testid="performance-kicker">VERIFIED MARKET CONTEXT · NOT A RANKING</span><h2 data-testid="performance-title">How these stocks<br /><em>travelled.</em></h2><p data-testid="performance-intro">Adjusted-price history can spark a question. It cannot prove business quality, predict future returns, or tell you to buy or sell.</p></div><div className="performance-period-control" data-testid="performance-period-control"><span>Shared period</span><div>{(["1Y", "3Y", "5Y"] as PeriodKey[]).map((option) => <button type="button" className={period === option ? "active" : ""} onClick={() => { setPeriod(option); onPeriodChange(option); }} key={option} data-testid={`performance-period-${option.toLowerCase()}`}>{option}</button>)}</div></div></div><PerformanceOverlayChart companies={companies} period={period} loading={loading.some(Boolean)} /><div className="performance-grid" data-testid="performance-grid">{companies.map((company, index) => <PerformanceCard key={company.id} company={company} period={period} loading={loading[index]} onExplore={() => onExplore(company.ticker)} onIntuition={() => onIntuition(company.ticker)} />)}</div><p className="performance-disclaimer" data-testid="performance-disclaimer">Source: Yahoo Finance daily adjusted close. Dividends and splits returned by the source remain visible in each company’s Stock journey detail. Historical movement is educational context—not a recommendation.</p></section>;
 }
 
 function PriceChart({ points, ticker }: { points: PricePoint[]; ticker: string }) {

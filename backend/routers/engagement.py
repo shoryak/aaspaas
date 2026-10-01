@@ -85,7 +85,8 @@ async def enrich_company(idea_id: str, ticker: str, request: Request, response: 
 @router.post("/gut-checks", response_model=GutCheckResponse)
 async def record_gut_check(payload: GutCheckCreate, request: Request, response: Response):
     session_id = ensure_session(request, response)
-    await _owned_idea(payload.idea_id, session_id)
+    if not await db.ideas.find_one({"id": payload.idea_id}, {"id": 1}):
+        raise HTTPException(status_code=404, detail="Discovery not found")
     await db.gut_checks.insert_one({
         "id": str(uuid.uuid4()), **payload.model_dump(), "session_id": session_id,
         "answered_at": utc_now(), "is_demo": False,

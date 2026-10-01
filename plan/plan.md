@@ -1,219 +1,148 @@
-# Aaspaas Engagement, Retention, and Growth Plan
+# Aaspaas Performance-First Results Plan
 
-Aaspaas turns an everyday observation into a short, visual story about the Indian listed businesses and real stock journeys behind it.
-The experience remains educational—not trading advice—while using verified market moments, personal cause-and-effect narratives, and light interaction to make business learning memorable.
+Aaspaas will open every discovery with a visual comparison of how the surfaced stocks have travelled, using verified adjusted-price history as the immediate hook.
+The existing business-quality comparison remains directly below, so price performance creates curiosity while business context, risk, and independent research remain the lesson.
 
 ## Who it's for
 
-- Curious Indian consumers who notice products, habits, and infrastructure around them but do not yet know how to connect those observations to listed companies.
-- New and intermediate investors who want to practise business-quality thinking without receiving buy/sell recommendations or price targets.
-- Social visitors who need an immediate, low-friction payoff before they will share, return, or provide an email address.
-- The internal Aaspaas team, which needs to understand what people explore, where they lose interest, what they share, and what could support a paid education product.
+- Curious Indian consumers who recognize products, services, and changing habits before they understand the listed businesses behind them.
+- New and intermediate investors who find a visual stock journey easier to enter than a qualitative scorecard, but still need help separating price movement from business quality.
+- Mobile and social visitors who need an immediate, scannable payoff before choosing whether to explore a company in depth.
+- Returning readers who want to compare market journeys, business quality, and their own intuition without following a forced story sequence.
 
 ## Core features and experience
 
-### A story that builds curiosity
+### Performance is the first results hook
 
-- Each company becomes a short sequence rather than one dense reveal:
-  1. echo a phrase from the user’s own observation;
-  2. reveal the company through a visual cause-and-effect trail;
-  3. open with one verified, surprising stock-market moment;
-  4. explain what that movement teaches about expectations, uncertainty, or risk;
-  5. offer one light interaction;
-  6. reveal the business model, current real data, scorecard, plot twist, and research prompt.
-- Questions support the story instead of carrying it. A user can understand and enjoy a company card even when they skip the interaction.
-- Question formats alternate by company so a session does not repeat the same interaction:
-  - an intuitive moat or pricing-power choice;
-  - a multiple-choice question about how the company makes money;
-  - a higher/lower or range-based guess using a real fetched metric.
-- Each company receives only one question. If the required real metric is unavailable, the card automatically uses a qualitative question instead.
-- Questions use conversational language and begin with what the user can reasonably infer. They do not assume finance knowledge or ask the user to endorse an investment conclusion.
-- The reveal explains why the answer matters, not merely whether it matched the model.
-- A running “your read so far” indicator shows matched answers out of attempted answers without treating it as investing skill or advice.
+- Results open with a “How these stocks travelled” section above the existing business comparison.
+- All surfaced companies remain in the AI relevance order. The page does not rank companies by gains, imply that the best performer is the best business, or create a winners-and-losers leaderboard.
+- Each company receives a compact performance card containing:
+  - company name, ticker, and exchange;
+  - a mini adjusted-price chart;
+  - total adjusted-price movement over the selected period;
+  - maximum peak-to-trough drawdown over the selected period;
+  - period start and end dates;
+  - Yahoo Finance source, as-of date, and live/cached/stale/unavailable status.
+- A shared 1Y / 3Y / 5Y period control changes every chart and statistic together. It defaults to 5Y.
+- Adjusted close remains the comparison series so dividends and stock splits do not create false visual jumps.
+- Returned dividends and splits remain available in the deeper stock-journey detail, rather than crowding the first-glance cards.
+- Positive and negative movement use semantic green and red only for the actual sourced value. Decorative accents remain marigold and indigo.
+- The section states plainly that historical price movement is context, not proof of business quality, future performance, or a reason to buy or sell.
+- If a company lacks usable historical data, its place remains visible with an honest unavailable state. The rest of the result page remains usable.
 
-### Verified stock moments as the hook
+### Business quality stays directly below
 
-- Company cards mix two historical formats across a session:
-  - **Wildest moment:** the most striking verified one-day move, approximately one-trading-month move, or peak-to-trough drawdown in the last five years.
-  - **Five-year journey:** a compact view of how the adjusted share price travelled across the period, including major rises, falls, and recovery or non-recovery.
-- The default view is one striking movement and a roughly 20-second explanation. A full five-year chart is available on demand rather than placed in the main story flow.
-- Historical calculations use adjusted close so stock splits and dividends do not create fake “wow” movements. Returned split and dividend events are shown where relevant.
-- Every movement displays the source, period, as-of date, and whether the data is live, cached, stale, or unavailable.
-- Aaspaas never presents a price movement as proof of business quality. The teaching beat explicitly separates:
-  - what the business did;
-  - what the market expected;
-  - what the verified price series shows; and
-  - what still needs investigation.
-- Without a dated, reliable source for an event, Aaspaas does not say a stock moved “because” of a particular development. It says the movement happened and points the user to filings or announcements around that date.
-- No “₹10,000 became ₹X” widget, return-chasing language, price target, or implied missed opportunity is shown.
+- The current comparison view follows immediately after the performance section on the same page.
+- It continues to show all companies side by side on desktop and as stacked leaderboard cards on mobile.
+- Each card keeps the one-line observation connection, direct/enabling/adjacent label, four mini quality-score pips, P/E, and market cap.
+- Existing sorting remains available for the business section: overall quality, moat, P/E, and market cap.
+- A short transition explains the separation: the first section shows what the share price did; the second asks what kind of business sits underneath it.
 
-### A personal observation-to-stock bridge
+### Every company offers two explicit paths
 
-- Each company includes a five-step visual chain built from the user’s words:
-  1. **You noticed:** the relevant phrase from the submitted observation;
-  2. **Behaviour changed:** what customers, businesses, or households appear to be doing;
-  3. **The company gets paid when:** the specific revenue driver connected to that behaviour;
-  4. **Profit can change if:** the volume, price, cost, or capital factor that makes the link economically meaningful;
-  5. **The stock reacts to expectations about:** the growth, margin, moat, or execution assumption the market may be pricing.
-- The chain distinguishes the user’s observation, verified company facts, and AI interpretation so the narrative feels personal without disguising judgment as sourced data.
-- A visible connection-strength label—direct, enabling, or adjacent—shows how close the listed company is to the original observation.
-- Every chain ends with two teaching prompts rather than another quiz:
-  - “What has to be true?” summarises the key assumption supporting the link.
-  - “What could break the chain?” introduces the most important disconfirming evidence.
-- Users can save a chain to My Discoveries as a “field note” for later verification.
+- Every company card presents two visible actions rather than relying on a generic card tap:
+  - **Explore details** opens the existing menu-driven company workspace.
+  - **Test your intuition** opens the optional question directly.
+- The two actions appear consistently on both the performance cards and the business-quality cards.
+- “Explore details” opens the existing selectable sections: what stands out, what is risky, how it makes money, full scorecard, stock journey, and verify it yourself.
+- “Test your intuition” opens only that company’s optional game. It never blocks details, charts, comparison, recap, sharing, or the journal.
+- After answering or skipping, the user receives a supportive explanation of why the question matters and can choose either “Explore details” or “Back to all companies.”
+- The running read count remains a light session statistic and is never described as investing ability, suitability, or predictive skill.
 
-### A shareable payoff
+### Verified data and educational safeguards
 
-- The recap assigns a playful learning style—such as Detective, Contrarian, or Storyteller—based on the mix of answers, skips, and explored details.
-- The result is framed as a session snapshot, not a psychological assessment or a claim about future investing performance.
-- A visually distinct, screenshot-friendly result card includes the investor type, a phrase from the original observation, the most surprising verified stock moment, the companies explored, and the session score.
-- Sharing remains optional and is tracked as the core growth action.
+- Performance cards and charts use verified Yahoo Finance historical data only; AI does not generate or fill missing price values.
+- AI interpretation and verified numerical data remain in separate visual containers with separate labels.
+- Aaspaas does not claim why a stock moved unless a dated, reliable source is available. It points readers toward exchange announcements, results, or management commentary near the date.
+- There is no hypothetical ₹10,000 return, missed-opportunity language, price target, trade action, or urgency framing.
+- The existing Screener handoff remains outbound-only and clearly labeled as independent research.
+- The education-only disclaimer remains visible on the performance section, company details, and recap.
 
-### Faster perceived and actual results
+### Loading and resilience
 
-- Discovery is split into a fast first pass and progressive enrichment: company names and tickers appear first, while qualitative explanations, scorecards, and real data fill in afterward.
-- Enrichment for identified companies runs in parallel, and the next company is prepared while the user answers the current card.
-- Current financial data is cached per ticker for 45 minutes. Five-year historical series and calculated movement summaries are cached for six hours because they change less frequently.
-- Every unresolved block has a purposeful skeleton or shimmer state; the whole screen never waits behind one spinner.
-- The initial waiting view rotates short Peter Lynch principles, investing facts, and explanations of what Aaspaas is checking.
-- If Vertex AI or live financial data fails, the current honest fallback behaviour remains visible and the usable parts of the story continue.
+- Company discovery can appear before all market data is ready.
+- The performance section reserves each chart’s final space with a purposeful skeleton so cards do not jump while history loads.
+- Available companies become interactive immediately; one slow or unavailable ticker does not block the other companies or the business comparison.
+- The existing current-finance and historical-data cache behavior remains in place.
+- The clearly labeled curated company fallback remains available when live AI fails.
 
-### More useful company research
+### Measurement
 
-- Existing Yahoo Finance fields remain the in-product factual block: market cap, P/E, ROE, debt/equity, and revenue growth, with delayed/incomplete-data disclosure.
-- A separate verified historical block uses five years of Yahoo Finance daily prices, adjusted close, volume, and returned corporate actions to calculate the 52-week range, largest daily move, largest approximately-one-month move, maximum drawdown, and annual journey.
-- Verified historical data and AI interpretation never share the same visual container or source label.
-- Each company gets a clearly labelled “See full fundamentals on Screener” outbound link as part of the verify-it-yourself step.
-- Screener is linked only; its pages are not scraped, copied, or treated as an API.
-- The qualitative section adds a compact “what to check next” list covering the relevant annual-report segment, management commentary, and the metric most likely to disprove the observation-to-company connection.
-- When a historical moment is shown, the research list also points to the exchange announcement, results release, or management commentary nearest that date without claiming causation.
-- A provider-neutral boundary remains around financial enrichment so a licensed richer source can replace or supplement Yahoo Finance for a future paid tier.
-
-### My Discoveries and return visits
-
-- “My Discoveries” automatically restores ideas and companies on the same browser using the anonymous session.
-- The journal shows the observation, date, surfaced companies, investor-type result, and a route back to the recap.
-- Entering an email links the current anonymous journal to that email internally for future migration, while browser/session identity remains the only way to display history in Phase 1.
-- An unverified email alone cannot reveal a private journal; cross-device restoration waits for verified email access in a later phase.
-
-### Low-friction email capture
-
-- A single “Get Aaspaas updates” field appears only:
-  - after the first completed recap; and
-  - on the daily-limit wall.
-- The prompt never blocks sharing, retrying within the remaining allowance, or reading existing discoveries.
-- It includes an obvious skip action and a short consent line: the address will only be used for Aaspaas updates, with a brief privacy note.
-- Dismissing the recap prompt suppresses it on that browser for 30 days.
-- Email records include consent time, capture location, linked session, and status so deletion or suppression requests can be honoured later.
-- Phase 1 captures consented email interest but does not send campaigns or create a password-based account.
-
-### Rate limiting and the Plus preview
-
-- Free usage is limited to three expensive idea submissions per UTC day.
-- The limit applies to both the anonymous session and a privacy-preserving daily IP fingerprint; exceeding either limit prevents further AI generation for that day.
-- Reading saved discoveries, navigating stories, answering already-generated questions, sharing, and opening research links are not rate-limited.
-- The limit response is a designed screen with reset context, the optional email prompt, and an Aaspaas Plus preview.
-- The Phase 1 Plus preview presents future benefits: unlimited ideas, a persistent cross-device journal, and priority enrichment. It records interest but does not take payment or falsely imply an active subscription.
-- The recap includes a clearly labelled, configurable broker-referral placeholder. Until a partner URL exists, it records interest and explains that a research partner is coming; it does not imitate a live affiliate offer.
-
-### Behaviour and growth analytics
-
-- Existing idea, answer, share, session, and pageview analytics continue.
-- New events cover:
-  - time spent on each company and story stage;
-  - question format, answer, skip, accuracy, and metric-guess distance;
-  - stock-hook format, chart expansion, highlighted movement, and whether the user continued after the hook;
-  - cause-and-effect chain completion, connection-strength view, and saved field notes;
-  - progressive-loading latency and whether live AI, curated fallback, live finance, or cached finance was used;
-  - LLM-assigned sector and observation theme;
-  - journal opens and recap completions;
-  - email prompt shown, dismissed, and submitted, including capture location;
-  - rate-limit hits, Plus-interest clicks, broker-interest clicks, and Screener outbound clicks.
-- The internal dashboard shows daily trends, completion funnel, median time to first company, stock-hook continuation, chart expansion, cause-chain completion, question engagement, dwell time, return visitors, journal usage, email conversion, limit hits, fallback rate, Screener clicks, and sharing rate.
-- Analytics remain aggregate and operational. Individual customer observations or emails are not sold or exposed in public leaderboards.
+- Existing analytics continue for submissions, detail sections, intuition questions, recap, sharing, journal, email, limits, fallbacks, and outbound research.
+- New aggregate events record:
+  - performance section viewed;
+  - 1Y / 3Y / 5Y period selected;
+  - performance card viewed;
+  - “Explore details” selected from a performance or business card;
+  - “Test your intuition” selected from a performance or business card;
+  - historical data status and render latency;
+  - whether a reader continued from price performance into business quality.
+- The internal studio adds performance-to-quality continuation and details-versus-intuition choice rates.
 
 ## User flow
 
-1. The visitor submits an everyday observation from the landing page.
-2. A short waiting sequence explains what is being checked and rotates useful investing context.
-3. The first identified company and ticker appear as soon as the fast discovery pass is ready; remaining content continues loading progressively.
-4. The first story echoes the visitor’s words and animates the five-step observation-to-stock chain so the company connection is understandable before any quiz appears.
-5. The card reveals one verified historical hook: either a wild rise/fall/drawdown or a five-year journey. A short explanation separates business reality from market expectations.
-6. The visitor may open the full chart, inspect corporate-action markers, or continue after the 20-second teaching beat.
-7. One light interaction reinforces the lesson, followed by the business model, current factual block, qualitative scorecard, “what has to be true,” “what could break the chain,” research checklist, and Screener link.
-8. The next company uses the other stock-hook style and a different interaction format. A real-metric guess is used only when the underlying value is available.
-9. The recap compares the companies, shows the session score, and presents the shareable investor-type card with the session’s most surprising verified market moment.
-10. After the first completed recap, the visitor may enter an email for updates or dismiss the prompt; sharing and continued use remain available.
-11. “My Discoveries” restores prior sessions on the same browser and lets the visitor reopen completed recaps or saved cause-and-effect field notes.
-12. After three idea submissions in a UTC day, the next submission opens the limit screen with reset guidance, optional update capture, and the Aaspaas Plus preview.
-13. The internal team reviews engagement, chart usage, chain completion, latency, retention, email, rate-limit, fallback, referral-interest, and sharing trends in the protected dashboard.
+1. A visitor submits an everyday observation.
+2. The educational waiting view explains that Aaspaas is mapping listed companies and checking sourced market history.
+3. Results open on the performance section, showing every surfaced company in AI relevance order with a 5Y adjusted-price mini chart, total movement, and maximum drawdown.
+4. The visitor may switch the shared period to 1Y or 3Y; all company cards update together.
+5. From any performance card, the visitor chooses either “Explore details” or “Test your intuition.”
+6. Scrolling down reveals the existing business-quality comparison, introduced as a separate lens beneath the price journey.
+7. Each business card repeats the two explicit actions, so the visitor can enter details or the optional game without relying on a hidden card tap.
+8. “Explore details” opens the menu-driven workspace and allows sections to be read in any order, with a persistent route back to all companies.
+9. “Test your intuition” opens one optional question for that company, then offers a route to details or back to results.
+10. The visitor can wrap up at any time to reach the existing learning-style recap, sharing, email prompt, broker-interest placeholder, and browser journal.
 
 ## UI/UX feel
 
-- The calm editorial landing and recap remain recognisably Aaspaas, but the story deck becomes more paced and cinematic.
-- Story transitions use deliberate beats: personal observation, connection chain, market surprise, explanation, optional interaction, and evidence. Content enters in layers rather than expanding into a long article.
-- Verified movement hooks use restrained but dramatic chart motion: the line draws to the key date, pauses, and annotates the real percentage move. Motion supports comprehension and never resembles a live trading terminal.
-- The cause-and-effect chain uses a horizontal path on desktop and a vertical path on mobile, progressively lighting each link from the user’s observation to the expectation reflected in the stock.
-- Question controls feel tactile and varied: choice cards, range chips, and higher/lower controls, with supportive feedback rather than exam-like red or green grading. They remain secondary to the story.
-- Skeletons reserve the final layout so incoming data does not cause jarring jumps.
-- Waiting content feels educational and alive, with subtle motion and short rotating copy rather than a generic loading message.
-- The investor-type card has a distinctive visual identity suitable for screenshots while retaining the marigold, indigo, serif, and monospace system.
-- The optional full chart feels like opening a research layer: five-year adjusted price, key movement markers, corporate actions, source date, and plain-language definitions are available without overwhelming the main card.
-- “My Discoveries” feels like a personal field notebook, not a brokerage watchlist.
-- The Plus wall is informative rather than coercive: the free limit, reset timing, skip paths, and inactive-payment status are explicit.
-- Education-only language remains prominent on landing, story reveal, recap, Screener handoff, broker placeholder, and Plus preview.
+- The performance section is the strongest visual moment but does not resemble a live trading terminal.
+- Desktop uses one aligned row of company performance cards with synchronized chart scales where practical, generous whitespace, and a clearly shared period control.
+- The charts animate once with a restrained line draw. Percentages remain readable but do not use celebratory effects.
+- A clear editorial divider separates “What the stock did” from “What the business may be worth understanding.”
+- The two company actions have distinct hierarchy: “Explore details” is the primary editorial action, while “Test your intuition” uses the indigo secondary treatment.
+- Mobile uses full-width stacked performance cards, a sticky 1Y / 3Y / 5Y selector, and two large action buttons with at least 44-pixel touch targets.
+- Mobile headings remain expressive but do not crowd the viewport. Body copy uses a comfortable minimum size and line height; ticker, source, and status labels remain monospace but are never too small to read.
+- Charts fit the device width without horizontal scrolling, clipped labels, or tiny tap targets.
+- The existing warm paper comparison and dark company-detail workspace remain visually distinct.
 
 ## Implementation phases
 
-### Phase 1 — Full engagement MVP (built now)
+### Phase 1 — Performance-first MVP, built now
 
-- Deliver content-led story beats: personal observation echo, visual cause-and-effect chain, verified stock-movement hook, short teaching explanation, then one optional reinforcing interaction.
-- Deliver mixed historical formats across companies: wildest verified moment and five-year journey, with a full adjusted-price chart available on demand.
-- Deliver connection-strength labels, “what has to be true,” “what could break the chain,” and saveable field notes.
-- Deliver alternating one-question formats, including metric guesses with qualitative fallback, as supporting interactions rather than the primary hook.
-- Deliver the running session score and shareable investor-type result.
-- Deliver progressive discovery and enrichment, next-card prefetching, purposeful waiting content, a 45-minute current-finance cache, and a six-hour historical-series cache.
-- Deliver the session-based My Discoveries journal and internal email-to-journal linkage without email-based access.
-- Deliver the two optional email-capture moments, consent metadata, privacy note, and 30-day dismissal suppression.
-- Deliver the three-per-day session/IP limit, designed limit wall, Plus-interest capture, and configurable broker-interest placeholder.
-- Deliver Screener outbound links and richer verify-it-yourself checklists without scraping.
-- Deliver sector/theme tagging, stock-hook and chart events, cause-chain and field-note events, dwell and funnel events, latency/source events, email/rate-limit/referral events, and corresponding internal dashboard views.
+- Add the results-page performance section above the existing business comparison.
+- Add synchronized 1Y / 3Y / 5Y controls, defaulting to 5Y.
+- Show adjusted-price mini charts, total period movement, maximum drawdown, dates, source, freshness, and honest unavailable states for every company.
+- Preserve AI relevance order and explicitly avoid performance ranking.
+- Add visible “Explore details” and “Test your intuition” actions to every performance and business card.
+- Make the intuition game optional and provide clear exits to details or all companies after answering or skipping.
+- Preserve the menu-driven detail workspace, recap, sharing, journal, email prompt, rate limit, Screener handoff, and education boundaries.
+- Improve mobile chart sizing, typography, spacing, sticky period controls, touch targets, and action hierarchy.
+- Add aggregate analytics for period choice, price-to-quality continuation, and details-versus-intuition selection.
 
-### Phase 2 — Verified retention and paid Plus
+### Phase 2 — Sourced market-event research
 
-- Add verified email access through a magic link so discoveries can be restored safely across devices.
-- Introduce real Aaspaas Plus billing only after demand and cost-per-engaged-session are understood.
-- Turn Plus benefits into active entitlements: higher or unlimited limits, priority enrichment, persistent journal, deeper research checklists, and optional educational digests.
-- Add a licensed richer fundamentals provider for paid users while retaining source labels and the education-only boundary.
-- Activate a real, clearly disclosed broker partner link if an appropriate partnership exists.
+- Link highlighted dates to relevant NSE/BSE announcements, result releases, or company filings when a reliable dated source exists.
+- Add plain-language event timelines without asserting causation from price data alone.
+- Allow saved field notes to retain a chosen period and highlighted market moment.
 
-### Phase 3 — Learning product and sustainable monetization
+### Phase 3 — Personalized learning journeys
 
-- Build guided learning paths around sectors, moats, capital allocation, and annual-report reading.
-- Add longitudinal learning insights that show how a reader’s reasoning changes without turning them into personalised buy/sell advice.
-- Offer paid educational cohorts, premium research workflows, and institutional or campus licences.
-- Explore clearly labelled sponsorships and aggregated product-insight reporting without selling personal emails, raw observations, or individual behavioural histories.
+- Use repeated exploration patterns to recommend educational paths about drawdowns, expectations, moats, and annual-report reading without giving investment advice.
+- Add verified cross-device journal access and active Plus entitlements only after demand and operating cost are understood.
+- Introduce richer licensed market and fundamentals data for a paid research-learning tier.
 
 ## Assumptions
 
-- Phase 1 includes the full engagement MVP selected above; real billing, campaign email delivery, and a paid fundamentals provider are deferred.
-- The daily allowance resets at 00:00 UTC and counts a submission once the expensive discovery request begins, even if an upstream provider later fails.
-- Three submissions are allowed only when both the session and daily IP fingerprint remain below the limit; raw IP addresses are not retained.
-- The anonymous journal is browser-bound in Phase 1. Email linkage prepares records for future migration but does not grant access because there is no email verification yet.
-- Email capture is for product updates only. It is optional, requires affirmative submission, is recorded with source and timestamp, and is not treated as consent for broker marketing.
-- Anonymous behavioural and raw-observation analytics are retained for 12 months; consented email records are retained until deletion, suppression, or a later published retention policy applies.
-- Sector and theme tags are model-generated analytics labels and may be corrected or grouped in the internal dashboard.
-- A company receives one question per story. Formats alternate across companies, and metric questions appear only when verified source data is available.
-- Questions are optional reinforcement. The observation bridge, verified market moment, and teaching explanation carry the educational value of each story.
-- Historical hooks alternate between wildest-moment and five-year-journey formats across companies in a session.
-- Historical movement uses five years of Yahoo Finance daily adjusted-close data. The default hook may select the largest absolute one-day move, largest absolute 21-trading-session move, maximum drawdown, or a representative long-term journey.
-- Historical price calculations preserve returned corporate actions, source time, and as-of date. Missing observations remain missing rather than being estimated.
-- A movement is described as verified price behaviour, not as evidence of causation. Event explanations require a dated external source; otherwise Aaspaas provides only a question to investigate.
-- No hypothetical investment-return amount, missed-gain framing, price target, or urgency language is included.
-- The full five-year chart is optional; the default story shows one annotated movement and a roughly 20-second explanation before the quality scorecard.
-- The observation-to-stock chain labels AI interpretation separately from verified company and market facts.
-- Investor types are lightweight educational session summaries, not investor profiling, suitability assessment, or financial advice.
-- Yahoo Finance remains the in-product numerical source for Phase 1. Screener is outbound-only and will not be scraped.
-- The broker CTA has no live destination in Phase 1; it is clearly marked as forthcoming and records interest only.
-- The curated fallback remains enabled and visibly labelled whenever Vertex AI fails.
-- Monetization will come from optional subscriptions, education products, and disclosed referrals—not from selling identifiable customer data.
+- The performance section and business-quality comparison remain on one continuous result page; there are no top-level tabs in Phase 1.
+- The period selector offers 1Y, 3Y, and 5Y and defaults to 5Y.
+- Total period movement means change in adjusted close between the first and last available observations in the selected period.
+- Maximum drawdown means the largest adjusted-close peak-to-trough decline inside the selected period.
+- Companies remain in AI relevance order at all periods; changing the period never reorders them.
+- The two explicit actions appear on both performance cards and business comparison cards.
+- “Explore details” is visually primary; “Test your intuition” is secondary and optional.
+- The existing alternating intuition formats remain: moat choice, business-model choice, and metric guess when verified current data exists.
+- The existing menu-driven company detail view remains; the performance-first page changes entry and navigation, not the research content itself.
+- The existing recap, journal, sharing, optional email capture, rate limit, Plus-interest preview, and broker-interest placeholder remain.
+- Historical cards use Yahoo Finance adjusted-close data already retrieved for the surfaced companies; missing values are not estimated.
+- The performance section does not add comparison against an index or benchmark in Phase 1.
+- Price charts do not use intraday data, live quotes, trading controls, alerts, or portfolio language.
+- Phase 1 includes mobile optimization for the new performance section and both company actions; it does not redesign unrelated admin screens.

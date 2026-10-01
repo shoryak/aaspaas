@@ -81,6 +81,11 @@ async def admin_summary(request: Request):
     limit_hits = await _event_count("rate_limit_hit")
     fallback_count = await db.ideas.count_documents({"discovery_mode": "curated_fallback"})
     screener_clicks = await _event_count("screener_outbound_clicked")
+    performance_views = await _event_count("performance_section_viewed")
+    quality_continuations = await _event_count("performance_to_quality_continued")
+    detail_choices = await db.engagement_events.count_documents({"event_name": "result_action_selected", "properties.action": "details"})
+    intuition_choices = await db.engagement_events.count_documents({"event_name": "result_action_selected", "properties.action": "intuition"})
+    result_choices = detail_choices + intuition_choices
     return_visitors = await db.sessions.count_documents({"pageviews": {"$gt": 1}})
     generation_rows = await db.ideas.find({"generation_ms": {"$gt": 0}}, {"generation_ms": 1}).to_list(10000)
     median_generation = statistics.median([row["generation_ms"] for row in generation_rows]) if generation_rows else 0
@@ -101,6 +106,9 @@ async def admin_summary(request: Request):
         DashboardMetric(key="limit_hits", label="Limit hits", value=float(limit_hits), display=str(limit_hits)),
         DashboardMetric(key="fallback", label="Fallback rate", value=_ratio(fallback_count, ideas_count), display=f"{_ratio(fallback_count, ideas_count):.0%}"),
         DashboardMetric(key="screener", label="Screener clicks", value=float(screener_clicks), display=str(screener_clicks)),
+        DashboardMetric(key="performance_quality", label="Price → quality", value=_ratio(quality_continuations, performance_views), display=f"{_ratio(quality_continuations, performance_views):.0%}"),
+        DashboardMetric(key="details_choice", label="Details choice", value=_ratio(detail_choices, result_choices), display=f"{_ratio(detail_choices, result_choices):.0%}"),
+        DashboardMetric(key="intuition_choice", label="Intuition choice", value=_ratio(intuition_choices, result_choices), display=f"{_ratio(intuition_choices, result_choices):.0%}"),
     ]
     return AnalyticsSummary(
         ideas_submitted=ideas_count, sessions=sessions_count, pageviews=pageviews,

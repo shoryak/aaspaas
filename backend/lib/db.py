@@ -49,6 +49,10 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("day", ASCENDING), ("ip_fingerprint", ASCENDING)], name="stt_daily_ip"),
         IndexModel([("created_at", DESCENDING)], name="stt_time"),
     ],
+    "voice_passes": [
+        IndexModel([("token", ASCENDING)], name="voice_pass_token", unique=True),
+        IndexModel([("expires_at", ASCENDING)], name="voice_pass_ttl", expireAfterSeconds=600),
+    ],
     "events_cache": [IndexModel([("symbol", ASCENDING)], name="events_symbol", unique=True)],
     "share_image_cache": [
         IndexModel([("key", ASCENDING)], name="share_image_key", unique=True),

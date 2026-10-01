@@ -121,7 +121,7 @@ async def _build_summary(days: int) -> StudioSummary:
     events = await db.engagement_events.find({"event_name": {"$in": HEALTH_EVENTS}, **window("created_at")}, {"_id": 0, "event_name": 1, "idea_id": 1, "session_id": 1, "properties": 1}).to_list(None)
     interests = await db.product_interests.find(window("created_at"), {"_id": 0, "kind": 1, "session_id": 1}).to_list(None)
     emails = await db.email_interests.find({"status": "subscribed"}, {"_id": 0, "session_id": 1, "consent_at": 1}).to_list(None)
-    voice = await db.transcriptions.find(window("created_at"), {"_id": 0, "session_id": 1, "cost_usd": 1, "language": 1, "seconds": 1}).to_list(None)
+    voice = await db.transcriptions.find(window("created_at"), {"_id": 0, "session_id": 1, "cost_usd": 1, "language": 1, "seconds": 1, "engine": 1}).to_list(None)
     checks = await db.gut_checks.find({**REAL, **window("answered_at")}, {"_id": 0, "matched": 1}).to_list(None)
 
     ideas_in = [idea for idea in ideas if in_range(idea.get("submitted_at"))]
@@ -272,7 +272,7 @@ async def _build_summary(days: int) -> StudioSummary:
         _metric("cost_per_engaged", "Cost / engaged idea", _ratio(total_cost, len(engaged_ideas)), _usd(_ratio(total_cost, len(engaged_ideas))), f"{_pct(_ratio(len(engaged_ideas), len(ideas_in)))} of ideas led to details, markers, Nifty, or recap."),
         _metric("cost_per_share", "Cost / share", _ratio(total_cost, len(shares_in)), _usd(_ratio(total_cost, len(shares_in)))),
         _metric("viral_cac", "Viral CAC", _ratio(total_cost, len(referred_new)), _usd(_ratio(total_cost, len(referred_new))), "AI spend ÷ visitors acquired through shares (no ad spend)."),
-        _metric("voice_cost", "Voice transcription spend", sum(row.get("cost_usd", 0) for row in voice), _usd(sum(row.get("cost_usd", 0) for row in voice)), f"Whisper · {len(voice):,} clips · {sum(row.get('seconds', 0) for row in voice) / 60:.1f} min."),
+        _metric("voice_cost", "Voice transcription spend", sum(row.get("cost_usd", 0) for row in voice), _usd(sum(row.get("cost_usd", 0) for row in voice)), " · ".join(f"{engine.title()}: {sum(1 for row in voice if (row.get('engine') or 'whisper') == engine)} clips, {sum(row.get('seconds', 0) for row in voice if (row.get('engine') or 'whisper') == engine) / 60:.1f} min, {_usd(sum(row.get('cost_usd', 0) for row in voice if (row.get('engine') or 'whisper') == engine))}" for engine in ("deepgram", "whisper")) + "."),
         _metric("fallback_rate", "Fallback rate", _ratio(fallback, len(ideas_in)), _pct(_ratio(fallback, len(ideas_in))), "Curated fallback instead of live AI (cost-free but lower quality)."),
         _metric("generation", "Median AI wait", statistics.median(generation) / 1000 if generation else None, f"{statistics.median(generation) / 1000:.1f}s" if generation else "—"),
     ]

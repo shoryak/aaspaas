@@ -20,15 +20,17 @@ export function ObservationForm({ value, onChange, onSubmit, submitLabel = "Foll
 }) {
   const [mode, setMode] = useState<InputMode>("typed");
   const textarea = useRef<HTMLTextAreaElement>(null);
+  const base = useRef("");
+  const withBase = (text: string) => [base.current, text].filter(Boolean).join(" ");
   const addTranscript = (text: string) => {
-    onChange(value.trim() ? `${value.trim()} ${text}` : text);
+    onChange(withBase(text));
     setMode("voice");
     window.setTimeout(() => textarea.current?.focus(), 50);
   };
   return <form onSubmit={(event) => { event.preventDefault(); if (value.trim().length < 8) toast.error("Give us one useful sentence."); else onSubmit(value.trim(), mode); }} data-testid="observation-form">
     <label htmlFor="observation" className="mono-label" data-testid="observation-label">YOUR OBSERVATION</label>
     <Textarea id="observation" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="observation-input" ref={textarea} data-testid="observation-textarea" />
-    <VoiceInput onTranscript={addTranscript} />
+    <VoiceInput onStart={() => { base.current = value.trim(); }} onLive={(text) => onChange(withBase(text))} onTranscript={addTranscript} />
     <div className="example-wrap" data-testid="example-chips"><span className="micro-label" data-testid="example-label">Try an example</span>{EXAMPLES.map((example, index) => <button key={example} type="button" className="example-chip" onClick={() => onChange(example)} data-testid={`example-chip-${index + 1}`}>{example}</button>)}</div>
     <Button type="submit" size="lg" className="discover-button" data-testid="discover-submit-button">{submitLabel} <ArrowRight size={18} /></Button>
     <p className="allowance-note" data-testid="daily-allowance-note">Three AI-powered discoveries per UTC day. Reading and sharing stay open.</p>

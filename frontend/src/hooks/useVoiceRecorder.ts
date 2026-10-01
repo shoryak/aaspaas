@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { ApiError, apiUpload } from "@/lib/api";
-import type { TranscriptionResponse } from "@/lib/types";
+import { ApiError, apiPost, apiUpload } from "@/lib/api";
+import type { TranscriptionResponse, VoicePassResponse } from "@/lib/types";
 
 export type VoiceState = "idle" | "requesting" | "recording" | "transcribing";
 const MIME_TYPES = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
@@ -18,9 +18,31 @@ export function errorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-/** Records up to `maxSeconds` from the mic, uploads to /api/transcribe, and hands back the transcript. */
-export function useVoiceRecorder({ maxSeconds, onResult, onError }: { maxSeconds: number; onResult: (result: TranscriptionResponse) => void; onError: (reason: string, message: string) => void }) {
+interface LiveFinal { text: string; remaining: number }
+
+/** Opens a Deepgram live stream through the backend proxy (single-use pass). Resolves null when live is unavailable. */
+async function openLiveSocket(): Promise<WebSocket | null> {
+  let pass: VoicePassResponse;
+  try { pass = await apiPost<VoicePassResponse>("/voice/session"); }
+  catch (error) { if (error instanceof ApiError && error.status === 429) throw error; return null; }
+  const socket = new WebSocket(`${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/api/voice/stream?token=${encodeURIComponent(pass.token)}`);
+  const ready = await new Promise<boolean>((resolve) => {
+    const timeout = window.setTimeout(() => resolve(false), 5000);
+    socket.onmessage = (event) => { const message = JSON.parse(String(event.data)); window.clearTimeout(timeout); resolve(message.type === "ready"); };
+    socket.onerror = () => { window.clearTimeout(timeout); resolve(false); };
+  });
+  if (!ready) { socket.close(); return null; }
+  return socket;
+}
+
+/**
+ * Records up to `maxSeconds` from the mic. With `live`, audio streams to Deepgram Nova-3 and words arrive while speaking;
+ * otherwise (or if live fails) the same locally recorded clip is uploaded to Whisper.
+ */
+export function useVoiceRecorder({ maxSeconds, live, onPartial, onResult, onError }: { maxSeconds: number; live: boolean; onPartial: (finalText: string) => void; onResult: (result: TranscriptionResponse) => void; onError: (reason: string, message: string) => void }) {
   const [state, setState] = useState<VoiceState>("idle");
+  const [interim, setInterim] = useState("");
+  const [streaming, setStreaming] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [level, setLevel] = useState(0);
   const recorder = useRef<MediaRecorder | null>(null);
@@ -52,15 +74,47 @@ export function useVoiceRecorder({ maxSeconds, onResult, onError }: { maxSeconds
       onError("permission_denied", "Mic access is blocked. Allow the microphone in your browser settings, or type instead.");
       return;
     }
+    let socket: WebSocket | null = null;
+    if (live) {
+      try { socket = await openLiveSocket(); }
+      catch (error) { stream.current?.getTracks().forEach((track) => track.stop()); setState("idle"); onError("http_429", errorMessage(error, "Today's voice notes are used up.")); return; }
+    }
+    let liveFailed = !socket;
+    let finalWaiter: ((value: LiveFinal | null) => void) | null = null;
+    if (socket) {
+      socket.onmessage = (event) => {
+        const message = JSON.parse(String(event.data));
+        if (message.type === "partial") { onPartial(message.final); setInterim(message.interim); }
+        else if (message.type === "final") finalWaiter?.({ text: message.text, remaining: message.remaining });
+        else if (message.type === "error") liveFailed = true;
+      };
+      socket.onclose = () => finalWaiter?.(null);
+    }
+    setStreaming(Boolean(socket));
+    setInterim("");
     const mimeType = MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type));
     const media = new MediaRecorder(stream.current, mimeType ? { mimeType } : undefined);
     const chunks: Blob[] = [];
     cancelled.current = false;
-    media.ondataavailable = (event) => { if (event.data.size) chunks.push(event.data); };
+    media.ondataavailable = (event) => {
+      if (!event.data.size) return;
+      chunks.push(event.data);
+      if (socket?.readyState === WebSocket.OPEN && !liveFailed) socket.send(event.data);
+    };
     media.onstop = async () => {
       const duration = Date.now() - startedAt.current;
       release();
-      if (cancelled.current) { setState("idle"); return; }
+      setInterim("");
+      setStreaming(false);
+      if (cancelled.current) { socket?.close(); setState("idle"); return; }
+      if (socket && !liveFailed && socket.readyState === WebSocket.OPEN) {
+        setState("transcribing");
+        const finished = await new Promise<LiveFinal | null>((resolve) => { finalWaiter = resolve; socket.send(JSON.stringify({ type: "close" })); window.setTimeout(() => resolve(null), 6000); });
+        socket.close();
+        if (finished?.text) { onResult({ text: finished.text, language: null, remaining: finished.remaining }); setState("idle"); return; }
+        if (finished && duration >= 800) { onError("silent", "We couldn't make out any words. Try again in a quieter spot."); setState("idle"); return; }
+        // live stream dropped without a result: fall back to Whisper with the locally recorded clip
+      }
       if (duration < 800) { setState("idle"); onError("too_short", "That was very short. Hold on and speak a full sentence."); return; }
       const type = (media.mimeType || mimeType || "audio/webm").split(";")[0];
       const form = new FormData();
@@ -97,8 +151,8 @@ export function useVoiceRecorder({ maxSeconds, onResult, onError }: { maxSeconds
       };
       tick();
     } catch { /* level meter is decorative */ }
-  }, [state, maxSeconds, onError, onResult, release, stop]);
+  }, [state, maxSeconds, live, onPartial, onError, onResult, release, stop]);
 
   useEffect(() => () => { cancelled.current = true; if (recorder.current?.state === "recording") recorder.current.stop(); release(); }, [release]);
-  return { state, elapsed, level, start, stop, cancel };
+  return { state, elapsed, level, interim, streaming, start, stop, cancel };
 }

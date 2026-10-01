@@ -167,4 +167,5 @@ export interface MarketContextResponse {
 }
 
 export interface TranscriptionResponse { text: string; language: string | null; remaining: number }
-export interface VoiceAllowanceResponse { remaining: number; daily_limit: number; max_seconds: number }
+export interface VoiceAllowanceResponse { remaining: number; daily_limit: number; max_seconds: number; live: boolean }
+export interface VoicePassResponse { token: string; max_seconds: number }

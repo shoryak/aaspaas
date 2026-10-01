@@ -150,6 +150,12 @@ class VoiceAllowanceResponse(BaseModel):
     remaining: int
     daily_limit: int
     max_seconds: int
+    live: bool = False
+
+
+class VoicePassResponse(BaseModel):
+    token: str
+    max_seconds: int
 
 
 class IdeaResponse(BaseModel):

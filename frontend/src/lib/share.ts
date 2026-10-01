@@ -1,11 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { apiBlob } from "@/lib/api";
+import { apiBlob, apiGet } from "@/lib/api";
 import type { PeriodKey } from "@/lib/performance";
 
 export interface ShareImageOptions { period: PeriodKey; benchmark: boolean; hidden: string[] }
 
-export const shareLink = (ideaId: string, period: PeriodKey = "5Y") => `${window.location.origin}/api/share/${ideaId}?period=${period}`;
+export type ShareChannel = "whatsapp" | "x" | "copy" | "native" | "download";
+
+/** Every shared link carries the sharer's anonymous token + channel so Studio can trace the viral loop. */
+export const shareLink = (ideaId: string, period: PeriodKey, token: string | undefined, channel: ShareChannel) =>
+  `${window.location.origin}/api/share/${ideaId}?period=${period}&ch=${channel}${token ? `&ref=${token}` : ""}`;
+
+export function useShareToken() {
+  return useQuery({ queryKey: ["share-token"], queryFn: () => apiGet<{ token: string }>("/share-token"), staleTime: Infinity, retry: 1 });
+}
 
 const imagePath = (ideaId: string, { period, benchmark, hidden }: ShareImageOptions) =>
   `/share/${ideaId}/image.png?period=${period}&benchmark=${benchmark}&hidden=${encodeURIComponent(hidden.join(","))}`;

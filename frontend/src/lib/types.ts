@@ -117,19 +117,33 @@ export interface JournalItem {
   discovery_mode: "ai" | "curated_fallback";
 }
 
-export interface DashboardMetric { key: string; label: string; value: number; display: string }
-export interface AnalyticsSummary {
-  ideas_submitted: number;
-  sessions: number;
-  pageviews: number;
-  shares: number;
-  gut_checks: number;
-  gut_check_accuracy: number | null;
-  share_click_rate: number | null;
-  trend: { date: string; ideas: number; shares: number }[];
-  top_companies: { ticker: string; mentions: number }[];
-  engagement: DashboardMetric[];
-  funnel: { key: string; label: string; count: number }[];
+export interface StudioMetric { key: string; label: string; display: string; value: number | null; hint: string }
+export interface StudioFunnelStep { key: string; label: string; count: number }
+export interface ChannelRow { channel: string; shares: number; opens: number; new_visitors: number; activated: number; conversion: number | null }
+export interface PlatformRow { platform: string; fetches: number }
+export interface GenerationRow { generation: string; visitors: number }
+export interface SpreadingIdea { idea_id: string; observation: string; tickers: string[]; shares: number; opens: number; new_visitors: number; activated: number }
+export interface AcquisitionPoint { date: string; direct: number; referred: number; ideas: number; shares: number }
+export interface PowerUser { label: string; ideas: number; shares: number; limit_hits: number; referred_visitors: number; last_seen: string | null }
+export interface TickerCount { ticker: string; mentions: number }
+export interface StudioSummary {
+  range_days: number;
+  generated_at: string;
+  headline: StudioMetric[];
+  viral_funnel: StudioFunnelStep[];
+  channels: ChannelRow[];
+  preview_platforms: PlatformRow[];
+  viral_cycle: StudioMetric;
+  chain_max_depth: number;
+  generations: GenerationRow[];
+  top_spreading: SpreadingIdea[];
+  acquisition_trend: AcquisitionPoint[];
+  monetization: StudioMetric[];
+  power_users: PowerUser[];
+  unit_economics: StudioMetric[];
+  product_health: StudioMetric[];
+  top_companies: TickerCount[];
+  notes: string[];
 }
 export type MarketEventKind = "results" | "filing" | "dividend" | "split";
 export interface MarketEvent {

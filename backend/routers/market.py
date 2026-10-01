@@ -7,10 +7,11 @@ from fastapi.responses import HTMLResponse
 
 from lib.db import db
 from lib.nse import get_nse_announcements
-from lib.session import utc_now
+from lib.referral import crawler_platform, ensure_share_token
+from lib.session import SESSION_COOKIE, ensure_session, utc_now
 from lib.share_card import render_share_card
 from lib.yahoo import get_historical
-from models.aaspaas import HistoricalData
+from models.aaspaas import HistoricalData, ShareTokenResponse
 from models.market import MarketContextResponse, MarketEvent
 
 router = APIRouter(tags=["market"])
@@ -78,16 +79,37 @@ async def share_image(idea_id: str, period: str = Query("5Y", pattern="^(1Y|3Y|5
     return Response(content=png, media_type="image/png", headers={"Cache-Control": "public, max-age=1800"})
 
 
+@router.get("/share-token", response_model=ShareTokenResponse)
+async def get_share_token(request: Request, response: Response):
+    return ShareTokenResponse(token=await ensure_share_token(ensure_session(request, response)))
+
+
 @router.get("/share/{idea_id}", response_class=HTMLResponse)
-async def share_page(idea_id: str, request: Request, period: str = Query("5Y", pattern="^(1Y|3Y|5Y)$")):
-    """Link-preview page: crawlers read the Open Graph tags, people are redirected into the app."""
+async def share_page(
+    idea_id: str, request: Request,
+    period: str = Query("5Y", pattern="^(1Y|3Y|5Y)$"),
+    ref: str = Query("", max_length=24), ch: str = Query("", max_length=16),
+):
+    """Link-preview page: crawlers read the Open Graph tags, people are attributed to the sharer and redirected."""
     idea = await _idea(idea_id)
-    agent = request.headers.get("user-agent", "").lower()
-    await db.engagement_events.insert_one({
-        "id": str(uuid.uuid4()), "event_name": "share_link_opened", "idea_id": idea_id,
-        "properties": {"crawler": any(bot in agent for bot in ("bot", "whatsapp", "facebookexternalhit", "twitter", "slack", "telegram", "discord"))},
-        "created_at": utc_now(),
-    })
+    now = utc_now()
+    channel = ch if ch in ("whatsapp", "x", "copy", "native", "download") else ("unattributed" if not ref else "link")
+    platform = crawler_platform(request.headers.get("user-agent", ""))
+    cookie_carrier = Response()
+    open_row = {"id": str(uuid.uuid4()), "idea_id": idea_id, "ref": ref or None, "channel": channel, "opened_at": now, "crawler": bool(platform), "platform": platform}
+    if not platform:
+        is_new = not request.cookies.get(SESSION_COOKIE)
+        session_id = ensure_session(request, cookie_carrier)
+        own = await db.sessions.find_one({"id": session_id}, {"share_token": 1})
+        self_open = bool(ref) and bool(own) and own.get("share_token") == ref
+        referral = {"acquired_via": "share", "referred_by_token": ref or None, "referred_idea_id": idea_id, "referral_channel": channel} if is_new else {}
+        await db.sessions.update_one(
+            {"id": session_id},
+            {"$setOnInsert": {"id": session_id, "created_at": now, "is_demo": False, "pageviews": 0, **referral}, "$set": {"last_seen_at": now}},
+            upsert=True,
+        )
+        open_row.update(session_id=session_id, new_visitor=is_new, self_open=self_open)
+    await db.share_opens.insert_one(open_row)
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host") or request.headers.get("host", request.url.netloc)
     base = f"{scheme}://{host}"
@@ -96,7 +118,7 @@ async def share_page(idea_id: str, request: Request, period: str = Query("5Y", p
     title = escape(f"“{idea['observation']}” — an Aaspaas read")
     description = escape(f"{tickers or 'No listed match'} · how these stocks travelled. Educational context, not a recommendation.")
     image = escape(f"{base}/api/share/{idea_id}/image.png?period={period}")
-    return HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title}</title>
+    html_response = HTMLResponse(f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{title}</title>
 <meta name="description" content="{description}">
 <meta property="og:type" content="website"><meta property="og:site_name" content="Aaspaas">
 <meta property="og:title" content="{title}"><meta property="og:description" content="{description}">
@@ -105,3 +127,5 @@ async def share_page(idea_id: str, request: Request, period: str = Query("5Y", p
 <meta name="twitter:description" content="{description}"><meta name="twitter:image" content="{image}">
 <meta http-equiv="refresh" content="0;url={escape(target)}"><script>window.location.replace({target!r});</script>
 </head><body><a href="{escape(target)}">Open this idea on Aaspaas</a></body></html>""")
+    html_response.raw_headers.extend(header for header in cookie_carrier.raw_headers if header[0] == b"set-cookie")
+    return html_response

@@ -5,6 +5,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from lib.db import db
+from lib.referral import ensure_share_token
 from lib.session import ensure_session, utc_now
 from lib.yahoo import get_finance, get_historical
 from models.aaspaas import (
@@ -100,8 +101,10 @@ async def record_share(payload: ShareCreate, request: Request, response: Respons
     session_id = ensure_session(request, response)
     if not await db.ideas.find_one({"id": payload.idea_id}, {"id": 1}):
         raise HTTPException(status_code=404, detail="Discovery not found")
+    ref = await ensure_share_token(session_id)
     await db.share_events.insert_one({
-        "id": str(uuid.uuid4()), "idea_id": payload.idea_id, "surface": payload.surface, "session_id": session_id,
+        "id": str(uuid.uuid4()), "idea_id": payload.idea_id, "surface": payload.surface, "channel": payload.channel,
+        "ref": ref, "session_id": session_id,
         "clicked_at": utc_now(), "is_demo": False,
     })
     return RecordedResponse(recorded=True)

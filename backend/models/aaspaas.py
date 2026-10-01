@@ -180,6 +180,11 @@ class GutCheckResponse(BaseModel):
 class ShareCreate(BaseModel):
     idea_id: str
     surface: Literal["recap", "chart"] = "recap"
+    channel: Literal["whatsapp", "x", "copy", "native", "download"] = "native"
+
+
+class ShareTokenResponse(BaseModel):
+    token: str
 
 
 class RecordedResponse(BaseModel):
@@ -237,39 +242,3 @@ class AdminLoginResponse(BaseModel):
     authenticated: bool
 
 
-class TrendPoint(BaseModel):
-    date: str
-    ideas: int
-    shares: int
-
-
-class CompanyFrequency(BaseModel):
-    ticker: str
-    mentions: int
-
-
-class DashboardMetric(BaseModel):
-    key: str
-    label: str
-    value: float
-    display: str
-
-
-class FunnelStep(BaseModel):
-    key: str
-    label: str
-    count: int
-
-
-class AnalyticsSummary(BaseModel):
-    ideas_submitted: int
-    sessions: int
-    pageviews: int
-    shares: int
-    gut_checks: int
-    gut_check_accuracy: float | None = None
-    share_click_rate: float | None = None
-    trend: list[TrendPoint]
-    top_companies: list[CompanyFrequency]
-    engagement: list[DashboardMetric]
-    funnel: list[FunnelStep]

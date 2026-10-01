@@ -12,6 +12,7 @@ from google.genai import types
 from google.oauth2 import service_account
 
 from lib.db import db
+from lib.ai_cost import ai_cost_usd
 from lib.dates import today_iso
 from lib.session import daily_ip_fingerprint, ensure_session, utc_now
 from models.aaspaas import (
@@ -93,11 +94,11 @@ def _json_from_text(text: str) -> dict:
     return json.loads(cleaned[start : end + 1])
 
 
-async def _discover(observation: str, idea_id: str) -> tuple[DiscoveryResponse, bool]:
+async def _discover(observation: str, idea_id: str) -> tuple[DiscoveryResponse, bool, dict | None]:
     credentials_json = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
     project = os.environ.get("GCP_PROJECT_ID")
     if not credentials_json or not project:
-        return _fallback_discovery(observation), True
+        return _fallback_discovery(observation), True, None
     system = """You are Aaspaas, an educational Indian equity research guide. Map an everyday observation to genuinely exposed NSE/BSE companies. Never give advice, targets, recommendations, or financial numbers. Prefer a non-obvious supplier or enabling business when genuine. Distinguish facts from interpretation. Return only valid JSON."""
     prompt = f"""Observation: {observation}
 Return one JSON object with observation_theme and exactly 3 companies, or an empty companies list when no honest listed-company link exists. Keep every prose field to one short sentence of at most 22 words. Every company needs:
@@ -105,6 +106,7 @@ company_name; ticker without suffix; exchange NSE/BSE; sector; observation_phras
 Scorecard keys and labels: moat / Moat & pricing power; capital_allocation / Capital allocation discipline; management / Management quality; growth_runway / Growth runway. Each needs score 1-5 and a one-line rationale.
 Do not invent current or historical numbers. Keep every sentence compact enough for a mobile story."""
     chunks: list[str] = []
+    usage = None
     client = None
     try:
         credentials = service_account.Credentials.from_service_account_info(
@@ -125,10 +127,18 @@ Do not invent current or historical numbers. Keep every sentence compact enough 
         async for chunk in stream:
             if chunk.text:
                 chunks.append(chunk.text)
-        return DiscoveryResponse.model_validate(_json_from_text("".join(chunks))), False
+            if chunk.usage_metadata:
+                usage = chunk.usage_metadata
+        token_usage = None
+        if usage is not None:
+            token_usage = {
+                "input_tokens": usage.prompt_token_count or 0,
+                "output_tokens": (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0),
+            }
+        return DiscoveryResponse.model_validate(_json_from_text("".join(chunks))), False, token_usage
     except Exception as exc:
         logger.warning("Vertex discovery fallback for %s: %s", idea_id, exc)
-        return _fallback_discovery(observation), True
+        return _fallback_discovery(observation), True, None
     finally:
         if client is not None:
             await client.aio.aclose()
@@ -159,7 +169,7 @@ async def create_idea(payload: IdeaCreate, request: Request, response: Response)
     daily_remaining = await _consume_daily_allowance(request, session_id)
     started = time.perf_counter()
     idea_id = str(uuid.uuid4())
-    discovered, used_fallback = await _discover(payload.observation, idea_id)
+    discovered, used_fallback, token_usage = await _discover(payload.observation, idea_id)
     companies = [CompanyInsight(id=str(uuid.uuid4()), **draft.model_dump()) for draft in discovered.companies[:4]]
     submitted_at = utc_now()
     generation_ms = round((time.perf_counter() - started) * 1000)
@@ -171,6 +181,7 @@ async def create_idea(payload: IdeaCreate, request: Request, response: Response)
         "submitted_at": submitted_at, "discovery_mode": discovery_mode,
         "observation_theme": discovered.observation_theme, "generation_ms": generation_ms,
         "daily_remaining": daily_remaining, "saved_tickers": [], "is_demo": False,
+        **({"ai_usage": token_usage, "ai_cost_usd": ai_cost_usd(token_usage)} if token_usage else {}),
     }
     await db.ideas.insert_one(doc)
     await db.sessions.update_one(

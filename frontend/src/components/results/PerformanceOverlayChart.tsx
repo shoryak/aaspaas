@@ -1,16 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { Loader2, Share2 } from "lucide-react";
-import { toast } from "sonner";
 
 import { EventPopover, clusterEvents, eventAllowed } from "@/components/results/ChartEvents";
 import type { EventFilter } from "@/components/results/ChartEvents";
-import { Button } from "@/components/ui/button";
+import { ShareMenu } from "@/components/ShareMenu";
 import { useEngagement } from "@/hooks/useEngagement";
-import { apiPost } from "@/lib/api";
 import { downsample, niceTicks, pointsForPeriod, rupees, shortDate, signedPercent, slug, toTime } from "@/lib/performance";
 import type { PeriodKey } from "@/lib/performance";
-import { shareLink, shareOrDownload, useShareImage } from "@/lib/share";
 import type { CompanyInsight, MarketContextResponse, PricePoint } from "@/lib/types";
 
 const SERIES_COLORS = ["#e0a35a", "#a394cf", "#7fb2d6", "#e9e5da"];
@@ -61,7 +57,6 @@ export function PerformanceOverlayChart({ ideaId, observation, companies, period
   const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
   const { track } = useEngagement();
   const hiddenList = [...hidden].sort();
-  const shareImage = useShareImage(ideaId, { period, benchmark: benchmarkOn, hidden: hiddenList });
   useEffect(() => setSelectedGroup(null), [period, eventFilter, hidden, benchmarkOn, width]);
 
   const companySeries = useMemo<Series[]>(() => companies.flatMap((company, index) => {
@@ -124,19 +119,12 @@ export function PerformanceOverlayChart({ ideaId, observation, companies, period
     setHoverT(null);
     if (next !== null) track({ event_name: "chart_event_opened", idea_id: ideaId, properties: { count: groups[index].events.length, kinds: [...new Set(groups[index].events.map((event) => event.kind))], period } });
   };
-  const shareChart = async () => {
-    const outcome = await shareOrDownload({ blob: shareImage.data, title: "Aaspaas · how these stocks travelled", text: `“${observation}” — ${period} comparison on Aaspaas (educational, not advice)`, url: shareLink(ideaId, period) });
-    if (outcome === "cancelled") return;
-    void apiPost<{ recorded: boolean }>("/shares", { idea_id: ideaId, surface: "chart" }).catch(() => undefined);
-    track({ event_name: "chart_shared", idea_id: ideaId, properties: { period, benchmark: benchmarkOn, hidden: hiddenList.length, outcome } });
-    toast.success(outcome === "shared" ? "Chart shared." : "Chart image downloaded and link copied.");
-  };
   const eventsNote = context?.events_status === "unavailable" ? "NSE filings unavailable right now · showing Yahoo payouts only" : context?.events_status === "partial" ? "Some NSE filings could not load" : null;
 
   return <div className="overlay-chart" data-testid="overlay-chart">
     <div className="overlay-chart-head">
       <div><span className="overlay-kicker" data-testid="overlay-chart-kicker">{`ALL COMPANIES · ONE CANVAS · ${period}`}</span><p data-testid="overlay-chart-caption">Each line starts at 0% on the first trading day of the period, so different share prices compare fairly.</p></div>
-      <Button type="button" variant="outline" className="share-chart-button" onClick={() => void shareChart()} disabled={!companySeries.length} data-testid="share-chart-button">{shareImage.isFetching ? <Loader2 size={14} className="spin" /> : <Share2 size={14} />}Share chart</Button>
+      <ShareMenu ideaId={ideaId} observation={observation} period={period} benchmark={benchmarkOn} hidden={hiddenList} surface="chart" label="Share chart" variant="outline" disabled={!companySeries.length} testId="share-chart-button" />
     </div>
     <div className="overlay-controls" data-testid="overlay-controls">
       <button type="button" className={benchmarkOn ? "nifty-toggle on" : "nifty-toggle"} aria-pressed={benchmarkOn} disabled={!benchmarkSeries} onClick={() => { setBenchmarkOn(!benchmarkOn); track({ event_name: "benchmark_toggled", idea_id: ideaId, properties: { on: !benchmarkOn, period } }); }} data-testid="nifty-toggle">

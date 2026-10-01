@@ -113,7 +113,7 @@ export default function Home() {
   const didLogPageview = useRef(false);
   const [tourOpen, setTourOpen] = useState(() => !ideaId && !localStorage.getItem("aaspaas-tour-done"));
   const { track } = useEngagement();
-  const closeTour = (completed: boolean) => { setTourOpen(false); localStorage.setItem("aaspaas-tour-done", "1"); track({ event_name: completed ? "tour_completed" : "tour_skipped" }); };
+  const closeTour = ({ completed, tasksDone }: { completed: boolean; tasksDone: number }) => { setTourOpen(false); localStorage.setItem("aaspaas-tour-done", "1"); track({ event_name: completed ? "tour_completed" : "tour_skipped", properties: { tasks_done: tasksDone } }); };
   const restored = useQuery({ queryKey: ["idea", ideaId, shared], queryFn: () => apiGet<IdeaResponse>(`/ideas/${ideaId}?shared=${shared}`), enabled: Boolean(ideaId), retry: false });
 
   useEffect(() => { document.documentElement.classList.toggle("dark", dark); localStorage.setItem("aaspaas-theme", dark ? "dark" : "light"); }, [dark]);

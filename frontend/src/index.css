@@ -693,7 +693,7 @@ html { text-rendering: optimizeLegibility; }
   .detail-footer { font-size: 9px; line-height: 1.5; padding: 0 20px; }
 }
 /* Category cards (business-quality ranking) */
-.category-cards { display: grid; gap: 8px; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.category-cards { display: grid; gap: 8px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .category-card { background: var(--card); border: 1px solid var(--border); color: var(--foreground); cursor: pointer; display: flex; flex-direction: column; gap: 6px; min-height: 124px; padding: 13px 13px 12px; position: relative; text-align: left; transition: border-color .25s ease, transform .25s cubic-bezier(.22,1,.36,1), box-shadow .25s ease, background-color .25s ease; }
 .category-card::after { background: var(--primary); bottom: -1px; content: ""; height: 2px; left: -1px; position: absolute; right: -1px; transform: scaleX(0); transform-origin: left; transition: transform .35s cubic-bezier(.22,1,.36,1); }
 .category-card:hover { border-color: color-mix(in srgb, var(--primary) 55%, var(--border)); transform: translateY(-2px); }
@@ -713,7 +713,6 @@ html { text-rendering: optimizeLegibility; }
 .comparison-pip-row.active i.filled { box-shadow: 0 0 0 1px var(--primary); }
 .comparison-score.active strong { color: var(--primary); }
 .comparison-data-chips span.active { border-color: var(--primary); color: var(--foreground); }
-@media (max-width: 1100px) and (min-width: 701px) { .category-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* Overlay chart controls, benchmark, markers, sharing */
 .share-chart-button { gap: 7px; transition: transform .2s ease, background-color .2s ease; }
@@ -910,3 +909,31 @@ html { text-rendering: optimizeLegibility; }
 .friend-company p { color: var(--muted-foreground); font-size: 13px; line-height: 1.5; margin: 0; }
 .friend-read-button { gap: 8px; }
 @media (max-width: 900px) { .friend-hero { grid-template-columns: 1fr; padding-top: 28px; } }
+
+/* Results page: discrete snap panels on phones (desktop keeps free scroll; wrappers vanish there) */
+.snap-panel { display: contents; }
+.snap-nav { display: none; }
+.performance-grid .performance-disclaimer { grid-column: 1 / -1; }
+@media (max-width: 700px) {
+  html.snap-results { scroll-snap-type: y mandatory; }
+  .snap-panel { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; min-height: 100svh; padding: 18px 0; scroll-snap-align: start; scroll-snap-stop: always; }
+  .snap-panel > .comparison-header { margin-bottom: auto; }
+  .snap-panel > .comparison-intro { margin-bottom: auto; }
+  .performance-grid .snap-panel, .comparison-grid .snap-panel { padding: 18px 0 64px; }
+  .performance-grid .performance-disclaimer { margin-top: 14px; }
+  .snap-nav { display: block; }
+  .snap-dots { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; position: fixed; right: 2px; top: 50%; transform: translateY(-50%); z-index: 30; }
+  .snap-dots button { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; height: 18px; justify-content: center; padding: 0; position: relative; width: 11px; }
+  .snap-dots i { background: color-mix(in srgb, var(--foreground) 28%, transparent); border-radius: 3px; display: block; height: 6px; transition: height .35s cubic-bezier(.22,1,.36,1), background-color .3s ease; width: 4px; }
+  .snap-dots button.done i { background: color-mix(in srgb, var(--primary) 55%, transparent); }
+  .snap-dots button.active i { background: var(--primary); height: 18px; }
+  .snap-dot-label { background: color-mix(in srgb, var(--background) 88%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border); color: var(--foreground); font: 9px ui-monospace, monospace; letter-spacing: .06em; opacity: 0; padding: 3px 6px; pointer-events: none; position: absolute; right: 14px; text-transform: uppercase; top: 50%; transform: translate(6px, -50%); white-space: nowrap; }
+  .snap-dots button.active .snap-dot-label { animation: snap-label 2.2s ease forwards; }
+  .snap-next { align-items: center; animation: snap-next-in .45s cubic-bezier(.22,1,.36,1) both; backdrop-filter: blur(10px); background: color-mix(in srgb, #1b1c1e 88%, transparent); border: 1px solid #3a3c40; border-radius: 999px; bottom: calc(14px + env(safe-area-inset-bottom)); box-shadow: 0 14px 30px -14px #000; color: #efeee8; cursor: pointer; display: flex; font: 10px ui-monospace, monospace; gap: 6px; left: 50%; letter-spacing: .06em; min-height: 40px; padding: 0 14px 0 16px; position: fixed; text-transform: uppercase; transform: translateX(-50%); z-index: 30; }
+  .snap-next svg { animation: snap-bob 1.6s ease-in-out infinite; color: #e0a35a; }
+  .snap-next:active { transform: translateX(-50%) scale(.96); }
+}
+@keyframes snap-label { 0% { opacity: 0; transform: translate(6px, -50%); } 12%, 70% { opacity: 1; transform: translate(0, -50%); } 100% { opacity: 0; transform: translate(0, -50%); } }
+@keyframes snap-next-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes snap-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+@media (prefers-reduced-motion: reduce) { .snap-next, .snap-next svg, .snap-dots button.active .snap-dot-label { animation: none; } .snap-dots button.active .snap-dot-label { opacity: 1; } }

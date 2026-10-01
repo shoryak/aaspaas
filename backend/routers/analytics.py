@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import os
 import statistics
+import time
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 
@@ -9,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 
 from lib.ai_cost import DEFAULT_IDEA_USD
 from lib.db import db
+from lib.rate_limit import client_ip
 from lib.session import utc_now
 from models.aaspaas import AdminLogin, AdminLoginResponse
 from models.studio import (
@@ -23,8 +25,12 @@ ENGAGED_EVENTS = ["result_action_selected", "detail_section_opened", "chart_even
 HEALTH_EVENTS = [
     "performance_section_viewed", "performance_to_quality_continued", "result_action_selected", "detail_section_opened",
     "chart_event_opened", "benchmark_toggled", "journal_opened", "screener_outbound_clicked", "tour_completed",
-    "tour_skipped", "rate_limit_hit", "recap_completed",
+    "tour_skipped", "rate_limit_hit", "recap_completed", "global_cap_hit", "friend_landing_viewed", "friend_landing_submitted",
 ]
+LOCKOUT_ATTEMPTS = 5
+LOCKOUT_WINDOW = timedelta(minutes=15)
+SUMMARY_TTL_SECONDS = 60
+_summary_cache: dict[int, tuple[float, StudioSummary]] = {}
 
 
 def _admin_token() -> str:
@@ -37,10 +43,16 @@ def _require_admin(request: Request) -> None:
 
 
 @router.post("/admin/login", response_model=AdminLoginResponse)
-async def admin_login(payload: AdminLogin, response: Response):
+async def admin_login(payload: AdminLogin, request: Request, response: Response):
+    ip_hash = hashlib.sha256(f"admin:{client_ip(request)}".encode()).hexdigest()
+    recent = await db.admin_login_failures.count_documents({"ip_hash": ip_hash, "created_at": {"$gte": utc_now() - LOCKOUT_WINDOW}})
+    if recent >= LOCKOUT_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in 15 minutes.", headers={"Retry-After": "900"})
     expected = os.environ.get("ADMIN_PASSWORD", "")
     if not expected or not hmac.compare_digest(payload.password, expected):
+        await db.admin_login_failures.insert_one({"ip_hash": ip_hash, "created_at": utc_now()})
         raise HTTPException(status_code=401, detail="Incorrect password")
+    await db.admin_login_failures.delete_many({"ip_hash": ip_hash})
     response.set_cookie(ADMIN_COOKIE, _admin_token(), httponly=True, samesite="lax", max_age=28800)
     return AdminLoginResponse(authenticated=True)
 
@@ -80,10 +92,19 @@ def _anon(session_id: str) -> str:
 
 
 @router.get("/admin/summary", response_model=StudioSummary)
-async def admin_summary(request: Request, days: int = Query(30)):
+async def admin_summary(request: Request, days: int = Query(30), fresh: bool = False):
     _require_admin(request)
     if days not in (0, 7, 30, 90):
         raise HTTPException(status_code=422, detail="days must be 0, 7, 30 or 90")
+    cached = _summary_cache.get(days)
+    if cached and not fresh and cached[0] > time.monotonic():
+        return cached[1]
+    summary = await _build_summary(days)
+    _summary_cache[days] = (time.monotonic() + SUMMARY_TTL_SECONDS, summary)
+    return summary
+
+
+async def _build_summary(days: int) -> StudioSummary:
     now = utc_now()
     since = now - timedelta(days=days) if days else None
 
@@ -219,6 +240,7 @@ async def admin_summary(request: Request, days: int = Query(30)):
         _metric("broker_interest", "Broker handoff interest", float(len(broker_sessions)), f"{len(broker_sessions):,}", f"{_pct(_ratio(len(broker_sessions), active))} of active users — the affiliate revenue signal."),
         _metric("email_list", "Email list", float(len(emails)), f"{len(emails):,}", f"+{len(new_emails):,} in range. Owned channel for launches and re-engagement."),
         _metric("power_users", "Power users (3+ ideas)", float(len(power_ids)), f"{len(power_ids):,}", f"{_pct(_ratio(len(power_ids), active))} of active users."),
+        _metric("busy_hits", "Global AI cap hits", float(len(by_event["global_cap_hit"])), f"{len(by_event['global_cap_hit']):,}", "Visitors turned away by the daily AI budget — raise GLOBAL_DAILY_AI_CAP if this grows."),
         _metric("paid_intent", "Paid-intent audience", float(len(paid_intent)), f"{len(paid_intent):,}", f"Limit-hitters ∪ Plus interest ∪ power users ∪ new emails = {_pct(_ratio(len(paid_intent), active))} of active."),
     ]
     shares_per_session = Counter(share["session_id"] for share in shares_in)
@@ -269,6 +291,7 @@ async def admin_summary(request: Request, days: int = Query(30)):
         _metric("chart_shares", "Chart shares", float(chart_shares), f"{chart_shares:,}", f"{_pct(_ratio(chart_shares, len(shares_in)))} of all shares."),
         _metric("event_opens", "Filing markers opened", float(len(by_event["chart_event_opened"])), f"{len(by_event['chart_event_opened']):,}"),
         _metric("benchmark", "Nifty comparisons", float(len(by_event["benchmark_toggled"])), f"{len(by_event['benchmark_toggled']):,}"),
+        _metric("friend_landing", "Friend landing → own clue", _ratio(len(by_event["friend_landing_submitted"]), len(by_event["friend_landing_viewed"])), _pct(_ratio(len(by_event["friend_landing_submitted"]), len(by_event["friend_landing_viewed"]))), f"{len(by_event['friend_landing_viewed']):,} shared-link landings."),
         _metric("tour", "Tour completion", _ratio(len(by_event["tour_completed"]), tours), _pct(_ratio(len(by_event["tour_completed"]), tours))),
         _metric("screener", "Screener handoffs", float(len(by_event["screener_outbound_clicked"])), f"{len(by_event['screener_outbound_clicked']):,}"),
     ]

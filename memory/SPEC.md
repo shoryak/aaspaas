@@ -16,6 +16,7 @@ Aaspaas is an educational Indian stock-discovery experience based on “invest i
 - `email_interests`: consented update interest linked internally to the anonymous session; email does not unlock a journal.
 
 ## Key flows
+0a. Shared links (`/api/share/{id}` → `/?idea={id}&shared=1&landing=friend`) open the Friend Landing: “What would you have noticed?” observation box first (same ObservationForm as the landing page, CTA “Find my companies”), then the friend's read (observation, server-rendered chart image, company cards, “See their full read” → comparison). Events: friend_landing_viewed / friend_landing_submitted / friend_landing_full_read.
 0. First visit: a 4-step spotlight tour on the landing page (observation box → example chips → how the read works → disclaimer), shown once (localStorage `aaspaas-tour-done`), skippable, “Replay tour” in the header.
 1. Landing → submit observation (maximum three starts per UTC day by session and daily IP fingerprint) → educational waiting view (lesson cards rotate every 7s with motion cross-fade, progress bar, step indicators) → Vertex AI company discovery.
 2. Results open with “How these stocks travelled”: a combined overlay chart (all companies rebased to 0% for the shared period, hover/tap tooltip with % and ₹ per stock, legend toggles to hide/show a line), then AI-relevance-ordered performance cards, shared 1Y/3Y/5Y control, per-company ₹ adjusted-price mini charts with high/low labels and start→end share price, total movement, period drawdown, dates, Yahoo status, and honest unavailable states. Price movement is explicitly separated from business quality and never ranked.
@@ -34,3 +35,11 @@ The public flow is anonymous and uses an httpOnly `aaspaas_session` cookie. The 
 ## Integrations
 LLM discovery uses Vertex AI Gemini `gemini-2.5-flash` in `us-central1` with server-only service-account credentials and the async streaming API. If Vertex is unavailable, the UI clearly labels a curated qualitative fallback. Financial facts use public Yahoo Finance quote endpoints and are labeled as delayed/incomplete; if Yahoo is unavailable, qualitative output remains visible.
 Five-year historical enrichment uses Yahoo Finance daily adjusted close with returned corporate actions, explicit live/cached/stale/unavailable status, and no causal claim. Screener is outbound-only and is never scraped. Market events use NSE's unofficial public announcements JSON (`/api/corporate-announcements`, browser UA + Referer); BSE's API blocks server traffic, so it is not used. If NSE blocks, `events_status` becomes `unavailable` and only Yahoo payouts show.
+
+## Launch hardening (scale & abuse)
+- Discovery allowance: 3/day per anonymous session; 30/day per network IP (`IP_DAILY_LIMIT`, generous for mobile CGNAT); global `GLOBAL_DAILY_AI_CAP` (default 1500/day) → HTTP 503 `{code:"busy"}` → “Aaspaas is busy today, come back tomorrow” screen (event `global_cap_hit`, shown in Studio).
+- `RateLimitMiddleware` (lib/rate_limit.py, in-process per worker, per IP sliding 60s): image 60/min, writes 240/min, reads 900/min (env `RATE_LIMIT_*_PER_MIN`). Returns 429 + Retry-After.
+- Studio login lockout: 5 failures / 15 min per IP (`admin_login_failures`, TTL index) → 429.
+- Share images cached in Mongo `share_image_cache` (6h TTL, key idea:period:benchmark:hidden; hidden filtered to the idea's tickers) and rendered with max 2 concurrent Pillow jobs.
+- Studio summary cached 60s per range; the refresh button passes `fresh=true`.
+- Indexes added for sessions (created/last_seen/share_token/referred_by), share_events (clicked_at/ref), share_opens, gut_checks.answered_at, events_cache, caches.

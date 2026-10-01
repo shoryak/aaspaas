@@ -23,7 +23,9 @@ from models.aaspaas import (
 )
 
 router = APIRouter(tags=["discovery"])
-DAILY_LIMIT = 3
+DAILY_LIMIT = 3  # per anonymous visitor
+IP_DAILY_LIMIT = int(os.environ.get("IP_DAILY_LIMIT", "30"))  # per network; generous for mobile CGNAT
+GLOBAL_DAILY_AI_CAP = int(os.environ.get("GLOBAL_DAILY_AI_CAP", "1500"))  # protects total Vertex spend
 logger = logging.getLogger(__name__)
 
 
@@ -149,18 +151,25 @@ async def _consume_daily_allowance(request: Request, session_id: str) -> int:
     fingerprint = daily_ip_fingerprint(request, day)
     session_count = await db.submission_attempts.count_documents({"day": day, "session_id": session_id})
     ip_count = await db.submission_attempts.count_documents({"day": day, "ip_fingerprint": fingerprint})
-    if session_count >= DAILY_LIMIT or ip_count >= DAILY_LIMIT:
-        reset_at = datetime.combine((utc_now() + timedelta(days=1)).date(), datetime.min.time(), timezone.utc)
+    reset_at = datetime.combine((utc_now() + timedelta(days=1)).date(), datetime.min.time(), timezone.utc)
+    if session_count >= DAILY_LIMIT or ip_count >= IP_DAILY_LIMIT:
         await db.engagement_events.insert_one({
             "id": str(uuid.uuid4()), "event_name": "rate_limit_hit", "session_id": session_id,
-            "properties": {"day": day}, "created_at": utc_now(),
+            "properties": {"day": day, "scope": "session" if session_count >= DAILY_LIMIT else "network"}, "created_at": utc_now(),
         })
-        raise HTTPException(status_code=429, detail={"message": "Today's three discoveries are complete.", "reset_at": reset_at.isoformat(), "daily_limit": DAILY_LIMIT})
+        message = "Today's three discoveries are complete." if session_count >= DAILY_LIMIT else "Your network has used today's shared allowance."
+        raise HTTPException(status_code=429, detail={"message": message, "reset_at": reset_at.isoformat(), "daily_limit": DAILY_LIMIT})
+    if await db.submission_attempts.count_documents({"day": day}) >= GLOBAL_DAILY_AI_CAP:
+        await db.engagement_events.insert_one({
+            "id": str(uuid.uuid4()), "event_name": "global_cap_hit", "session_id": session_id,
+            "properties": {"day": day, "cap": GLOBAL_DAILY_AI_CAP}, "created_at": utc_now(),
+        })
+        raise HTTPException(status_code=503, detail={"code": "busy", "message": "Aaspaas is busy today.", "reset_at": reset_at.isoformat()})
     await db.submission_attempts.insert_one({
         "id": str(uuid.uuid4()), "day": day, "session_id": session_id,
         "ip_fingerprint": fingerprint, "created_at": utc_now(),
     })
-    return DAILY_LIMIT - max(session_count, ip_count) - 1
+    return max(DAILY_LIMIT - session_count - 1, 0)
 
 
 @router.post("/ideas", response_model=IdeaResponse)

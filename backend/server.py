@@ -12,6 +12,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 from lib.db import client, db, ensure_indexes
+from lib.rate_limit import RateLimitMiddleware
 from models.aaspaas import IdeaResponse
 from routers.analytics import router as analytics_router
 from routers.discovery import router as discovery_router
@@ -40,6 +41,7 @@ api_router.include_router(engagement_router)
 api_router.include_router(analytics_router)
 api_router.include_router(market_router)
 
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,

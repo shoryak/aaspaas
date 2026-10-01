@@ -632,8 +632,6 @@ html { text-rendering: optimizeLegibility; }
   .comparison-meta span { font-size: 9px; min-height: 32px; }
   .comparison-toolbar { gap: 10px; margin-bottom: 14px; padding: 14px 18px 0; }
   .comparison-toolbar p { font-size: 12px; line-height: 1.45; }
-  .category-cards { display: flex; margin: 0 -18px; overflow-x: auto; padding: 2px 18px 8px; scroll-snap-type: x mandatory; }
-  .category-card { flex: 0 0 158px; scroll-snap-align: start; }
   .comparison-grid { display: flex; flex-direction: column; gap: 12px; padding: 0 16px; }
   .comparison-card-button { padding: 22px; }
   .comparison-card h2 { font-size: 34px; }
@@ -884,3 +882,31 @@ html { text-rendering: optimizeLegibility; }
   .studio-table { display: block; overflow-x: auto; white-space: nowrap; }
 }
 .admin-header .back-link { align-items: center; display: inline-flex; gap: 6px; }
+
+/* Category cards on phones: readable 2-column grid, overall quality full width */
+@media (max-width: 700px) {
+  .category-cards { gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .category-card { gap: 5px; min-height: 0; padding: 12px 12px 11px; }
+  .category-card:first-child { grid-column: 1 / -1; }
+  .category-card-label { font-size: 9px; }
+  .category-card-leader { font-size: 19px; overflow: visible; overflow-wrap: anywhere; white-space: normal; }
+  .category-card-value { font-size: 12px; }
+  .category-card-hint { font-size: 10px; }
+}
+
+/* Friend landing (shared links) */
+.friend-hero { align-items: start; display: grid; gap: clamp(28px, 5vw, 72px); grid-template-columns: 1fr 1fr; margin: 0 auto; max-width: 1380px; padding: clamp(36px, 6vw, 80px) clamp(22px, 5vw, 72px) 40px; }
+.friend-kicker { color: var(--secondary-accent, #5b4b8a); }
+.dark .friend-kicker { color: #a394cf; }
+.friend-hero h1 { font-size: clamp(46px, 6.6vw, 92px); letter-spacing: -.045em; line-height: .96; margin: 18px 0 20px; }
+.friend-hero h1 em { color: var(--primary); }
+.friend-read { border-top: 1px solid var(--border); margin: 0 auto; max-width: 1380px; padding: 40px clamp(22px, 5vw, 72px) 30px; }
+.friend-read-head blockquote { font-family: Georgia, serif; font-size: clamp(24px, 3vw, 36px); font-style: italic; letter-spacing: -.02em; line-height: 1.15; margin: 12px 0 22px; max-width: 900px; }
+.friend-read-image { aspect-ratio: 1200 / 630; background: #17181a; border: 1px solid var(--border); box-shadow: 0 30px 60px -36px #000; display: block; max-width: 960px; width: 100%; }
+.friend-read-companies { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin: 18px 0 22px; max-width: 960px; }
+.friend-company { background: var(--card); border: 1px solid var(--border); padding: 16px; transition: transform .25s cubic-bezier(.22,1,.36,1), border-color .25s ease; }
+.friend-company:hover { border-color: color-mix(in srgb, var(--primary) 50%, var(--border)); transform: translateY(-2px); }
+.friend-company strong { display: block; font-family: Georgia, serif; font-size: 21px; font-weight: 400; margin: 8px 0 6px; }
+.friend-company p { color: var(--muted-foreground); font-size: 13px; line-height: 1.5; margin: 0; }
+.friend-read-button { gap: 8px; }
+@media (max-width: 900px) { .friend-hero { grid-template-columns: 1fr; padding-top: 28px; } }

@@ -5,21 +5,17 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { EmailCapture } from "@/components/EmailCapture";
+import { FriendLanding } from "@/components/FriendLanding";
+import { ObservationForm } from "@/components/ObservationForm";
 import { LandingTour } from "@/components/LandingTour";
 import { ComparisonExperience } from "@/components/results/ComparisonExperience";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useEngagement } from "@/hooks/useEngagement";
 import { ApiError, apiGet, apiPost } from "@/lib/api";
 import { ShareMenu } from "@/components/ShareMenu";
 import type { AnswerRecord, CompanyInsight, IdeaResponse, PriceMovement } from "@/lib/types";
 
-const EXAMPLES = [
-  "Every wedding I've been to this year used the same online invite website",
-  "The same quick-commerce bags are showing up in every apartment lobby",
-  "I keep seeing solar panels appear on factory rooftops near me",
-];
 const WAITING_NOTES = [
   ["Follow the revenue", "A visible habit matters only when it reaches a listed company’s economics."],
   ["Price is an expectation", "A dramatic stock move does not prove a business became better or worse overnight."],
@@ -28,6 +24,7 @@ const WAITING_NOTES = [
 ];
 
 interface LimitDetail { message: string; reset_at: string; daily_limit: number }
+interface BusyDetail { code: "busy"; message: string; reset_at: string }
 
 const NOTE_MS = 7000;
 const WAITING_STEPS = ["Mapping real NSE/BSE exposure", "Separating judgment from sourced data", "Preparing the companies while evidence follows"];
@@ -68,6 +65,11 @@ function LimitWall({ detail, onBack }: { detail: LimitDetail; onBack: () => void
   return <main className="limit-page" data-testid="daily-limit-page"><a className="wordmark" href="/" data-testid="limit-wordmark">Aaspaas<span>.</span></a><section className="limit-hero"><span className="mono-label" data-testid="limit-kicker">TODAY’S FIELDWORK IS COMPLETE</span><h1 data-testid="limit-title">Three good clues<br /><em>are enough for today.</em></h1><p data-testid="limit-copy">The free allowance protects a costly research workflow from abuse. Your saved discoveries, charts, questions, and shares remain open.</p><div className="limit-reset" data-testid="limit-reset-time">Resets at {reset} UTC</div><div className="limit-actions"><Button onClick={onBack} variant="outline" data-testid="limit-back-button">Read saved discoveries</Button><Button onClick={() => { interest.mutate(); toast.success("Plus interest noted—there is no payment or active subscription yet."); }} data-testid="plus-interest-button">Preview Aaspaas Plus <Sparkles size={16} /></Button></div></section><section className="plus-preview" data-testid="plus-preview"><span className="mono-label">PLUS · COMING LATER</span><h2>More depth, when the learning loop proves useful.</h2><div><p><strong>Unlimited ideas</strong><span>Explore without the daily generation allowance.</span></p><p><strong>Cross-device journal</strong><span>Restore verified discoveries safely by email.</span></p><p><strong>Priority enrichment</strong><span>Deeper research layers with clearly sourced data.</span></p></div><small>No payment is accepted in Phase 1. This records interest only.</small></section>{showEmail && <EmailCapture location="limit_wall" onDismiss={() => setShowEmail(false)} />}</main>;
 }
 
+function BusyWall({ detail, onBack }: { detail: BusyDetail; onBack: () => void }) {
+  const reset = new Date(detail.reset_at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" });
+  return <main className="limit-page" data-testid="busy-page"><a className="wordmark" href="/" data-testid="busy-wordmark">Aaspaas<span>.</span></a><section className="limit-hero"><span className="mono-label" data-testid="busy-kicker">BUSY DAY IN THE FIELD</span><h1 data-testid="busy-title">Aaspaas is busy today.<br /><em>Come back tomorrow.</em></h1><p data-testid="busy-copy">So many people are tracing clues today that we’ve paused new AI discoveries to keep research quality and costs in check. Saved discoveries and shared reads stay open.</p><div className="limit-reset" data-testid="busy-reset-time">{`New discoveries reopen at ${reset} UTC`}</div><div className="limit-actions"><Button onClick={onBack} variant="outline" data-testid="busy-back-button">Read saved discoveries</Button><Button onClick={() => { window.location.href = "/"; }} data-testid="busy-home-button">Back to Aaspaas</Button></div></section></main>;
+}
+
 function investorType(answers: Record<string, AnswerRecord>) {
   const rows = Object.values(answers);
   const attempted = rows.filter((answer) => !answer.skipped).length;
@@ -98,13 +100,14 @@ export default function Home() {
   const params = new URLSearchParams(window.location.search);
   const ideaId = params.get("idea");
   const shared = params.get("shared") === "1";
-  const initialView = params.get("view") === "recap" ? "recap" : "story";
+  const initialView = shared && params.get("landing") === "friend" ? "friend" : params.get("view") === "recap" ? "recap" : "story";
   const [observation, setObservation] = useState("");
   const [idea, setIdea] = useState<IdeaResponse | null>(null);
-  const [view, setView] = useState<"landing" | "story" | "recap">("landing");
+  const [view, setView] = useState<"landing" | "friend" | "story" | "recap">("landing");
   const [activeIndex, setActiveIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, AnswerRecord>>({});
   const [limit, setLimit] = useState<LimitDetail | null>(null);
+  const [busy, setBusy] = useState<BusyDetail | null>(null);
   const [dark, setDark] = useState(() => localStorage.getItem("aaspaas-theme") === "dark");
   const didLogPageview = useRef(false);
   const [tourOpen, setTourOpen] = useState(() => !ideaId && !localStorage.getItem("aaspaas-tour-done"));
@@ -118,33 +121,38 @@ export default function Home() {
 
   const discover = useMutation({
     mutationFn: (value: string) => apiPost<IdeaResponse>("/ideas", { observation: value }),
-    onSuccess: (result) => { setIdea(result); setAnswers({}); setActiveIndex(0); setView("story"); },
+    onSuccess: (result) => { setIdea(result); setAnswers({}); setActiveIndex(0); setView("story"); window.history.replaceState({}, "", "/"); },
     onError: (error) => {
-      if (error instanceof ApiError && error.status === 429 && typeof error.body === "object" && error.body && "detail" in error.body) setLimit((error.body as { detail: LimitDetail }).detail);
+      const body = error instanceof ApiError && typeof error.body === "object" && error.body && "detail" in error.body ? (error.body as { detail: unknown }).detail : null;
+      if (error instanceof ApiError && error.status === 503 && body && typeof body === "object" && "code" in body) setBusy(body as BusyDetail);
+      else if (error instanceof ApiError && error.status === 429 && typeof error.body === "object" && error.body && "detail" in error.body) setLimit((error.body as { detail: LimitDetail }).detail);
       else toast.error("The guide could not map that idea right now. Try again in a moment.");
     },
   });
   const recap = useMutation({ mutationFn: (payload: Record<string, unknown>) => apiPost<{ recorded: boolean }>(`/ideas/${idea?.id}/recap`, payload) });
 
-  const reset = () => { setObservation(""); setIdea(null); setView("landing"); setLimit(null); window.history.replaceState({}, "", "/"); };
+  const reset = () => { setObservation(""); setIdea(null); setView("landing"); setLimit(null); setBusy(null); window.history.replaceState({}, "", "/"); };
+  const isSharedView = shared && idea?.id === ideaId; // a friend's idea: read-only, recap not recorded
   const finishStory = () => {
     if (!idea) return;
     const rows = Object.values(answers), matched = rows.filter((answer) => answer.matched === true).length, attempted = rows.filter((answer) => !answer.skipped).length, skipped = rows.filter((answer) => answer.skipped).length;
     const type = investorType(answers);
     setIdea({ ...idea, investor_type: type, recap_completed_at: new Date().toISOString() });
-    if (!shared) recap.mutate({ investor_type: type, matched, attempted, skipped });
+    if (!isSharedView) recap.mutate({ investor_type: type, matched, attempted, skipped });
     setView("recap");
   };
   const updateCompany = (company: CompanyInsight) => setIdea((current) => current ? { ...current, companies: current.companies.map((item) => item.ticker === company.ticker ? company : item) } : current);
   const updateSaved = (ticker: string, saved: boolean) => setIdea((current) => current ? { ...current, saved_tickers: saved ? [...new Set([...current.saved_tickers, ticker])] : current.saved_tickers.filter((item) => item !== ticker) } : current);
 
+  if (busy) return <BusyWall detail={busy} onBack={() => { window.location.href = "/discoveries"; }} />;
   if (limit) return <LimitWall detail={limit} onBack={() => { track({ event_name: "journal_opened", properties: { from: "limit_wall" } }); window.location.href = "/discoveries"; }} />;
   if (discover.isPending) return <WaitingView observation={observation} />;
   if (restored.isLoading && ideaId) return <WaitingView observation="Restoring your field note" />;
+  if (view === "friend" && idea) return <FriendLanding idea={idea} observation={observation} onObservation={setObservation} onSubmit={(value) => discover.mutate(value)} onOpenRead={() => { setView("story"); window.scrollTo({ top: 0 }); }} />;
   if (view === "story" && idea) {
     if (!idea.companies.length) return <NoMatch observation={idea.observation} onTryAgain={reset} />;
     return <ComparisonExperience idea={idea} answers={answers} onAnswer={(ticker, answer) => setAnswers((old) => ({ ...old, [ticker]: answer }))} onCompanyUpdate={updateCompany} onSavedChange={updateSaved} onFinish={finishStory} />;
   }
   if (view === "recap" && idea) return <Recap idea={idea} answers={answers} onTryAgain={reset} />;
-  return <main className="paper-page" data-testid="landing-page"><header className="site-header" data-testid="landing-header"><a href="/" className="wordmark" data-testid="aaspaas-wordmark">Aaspaas<span>.</span></a><div className="header-actions"><a className="studio-link" href="/discoveries" data-testid="my-discoveries-link">My Discoveries</a><button type="button" className="studio-link tour-replay" onClick={() => { setTourOpen(true); track({ event_name: "tour_replayed" }); }} data-testid="replay-tour-button"><Compass size={14} /> Replay tour</button><button className="theme-toggle" type="button" onClick={() => setDark(!dark)} aria-label="Toggle theme" data-testid="theme-toggle-button">{dark ? <Sun size={16} /> : <Moon size={16} />}<span>{dark ? "Light" : "Dark"}</span></button></div></header><div className="landing-layout"><section className="landing-copy" data-testid="landing-intro"><Badge className="eyebrow" data-testid="landing-eyebrow">EVERYDAY OBSERVATIONS → LISTED BUSINESSES</Badge><h1 data-testid="landing-headline">What have you<br /><em>noticed lately?</em></h1><p className="lede" data-testid="landing-lede">The things you keep seeing can be clues. Follow one through the business, the market’s expectations, and the evidence still worth checking.</p><div className="quote-block" data-testid="lynch-quote"><Quote size={20} /><div><p>“Invest in what you know.”</p><span>— Peter Lynch</span></div></div></section><section className="observation-panel" data-testid="observation-panel"><form onSubmit={(event) => { event.preventDefault(); if (observation.trim().length < 8) toast.error("Give us one useful sentence."); else discover.mutate(observation.trim()); }} data-testid="observation-form"><label htmlFor="observation" className="mono-label" data-testid="observation-label">YOUR OBSERVATION</label><Textarea id="observation" value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="I keep noticing…" className="observation-input" data-testid="observation-textarea" /><div className="example-wrap" data-testid="example-chips"><span className="micro-label" data-testid="example-label">Try an example</span>{EXAMPLES.map((example, index) => <button key={example} type="button" className="example-chip" onClick={() => setObservation(example)} data-testid={`example-chip-${index + 1}`}>{example}</button>)}</div><Button type="submit" size="lg" className="discover-button" data-testid="discover-submit-button">Follow the clue <ArrowRight size={18} /></Button><p className="allowance-note" data-testid="daily-allowance-note">Three AI-powered discoveries per UTC day. Reading and sharing stay open.</p></form><div className="how-it-works" data-testid="scoring-explainer"><p className="mono-label" data-testid="scoring-explainer-title">HOW THE READ WORKS</p><div className="explainer-row"><span>01</span><p><strong>Trace the chain</strong> from your words to revenue and profit.</p></div><div className="explainer-row"><span>02</span><p><strong>See a verified price moment</strong> without inventing its cause.</p></div><div className="explainer-row"><span>03</span><p><strong>Keep your own homework</strong> with a field note and research prompts.</p></div></div></section></div><footer className="disclaimer" data-testid="landing-disclaimer">This is educational context, not a recommendation to buy or sell—Aaspaas doesn’t place trades or manage money. Verify real numbers yourself before acting.</footer><LandingTour open={tourOpen && view === "landing"} onClose={closeTour} /></main>;
+  return <main className="paper-page" data-testid="landing-page"><header className="site-header" data-testid="landing-header"><a href="/" className="wordmark" data-testid="aaspaas-wordmark">Aaspaas<span>.</span></a><div className="header-actions"><a className="studio-link" href="/discoveries" data-testid="my-discoveries-link">My Discoveries</a><button type="button" className="studio-link tour-replay" onClick={() => { setTourOpen(true); track({ event_name: "tour_replayed" }); }} data-testid="replay-tour-button"><Compass size={14} /> Replay tour</button><button className="theme-toggle" type="button" onClick={() => setDark(!dark)} aria-label="Toggle theme" data-testid="theme-toggle-button">{dark ? <Sun size={16} /> : <Moon size={16} />}<span>{dark ? "Light" : "Dark"}</span></button></div></header><div className="landing-layout"><section className="landing-copy" data-testid="landing-intro"><Badge className="eyebrow" data-testid="landing-eyebrow">EVERYDAY OBSERVATIONS → LISTED BUSINESSES</Badge><h1 data-testid="landing-headline">What have you<br /><em>noticed lately?</em></h1><p className="lede" data-testid="landing-lede">The things you keep seeing can be clues. Follow one through the business, the market’s expectations, and the evidence still worth checking.</p><div className="quote-block" data-testid="lynch-quote"><Quote size={20} /><div><p>“Invest in what you know.”</p><span>— Peter Lynch</span></div></div></section><section className="observation-panel" data-testid="observation-panel"><ObservationForm value={observation} onChange={setObservation} onSubmit={(value) => discover.mutate(value)} /><div className="how-it-works" data-testid="scoring-explainer"><p className="mono-label" data-testid="scoring-explainer-title">HOW THE READ WORKS</p><div className="explainer-row"><span>01</span><p><strong>Trace the chain</strong> from your words to revenue and profit.</p></div><div className="explainer-row"><span>02</span><p><strong>See a verified price moment</strong> without inventing its cause.</p></div><div className="explainer-row"><span>03</span><p><strong>Keep your own homework</strong> with a field note and research prompts.</p></div></div></section></div><footer className="disclaimer" data-testid="landing-disclaimer">This is educational context, not a recommendation to buy or sell—Aaspaas doesn’t place trades or manage money. Verify real numbers yourself before acting.</footer><LandingTour open={tourOpen && view === "landing"} onClose={closeTour} /></main>;
 }

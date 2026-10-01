@@ -1,7 +1,9 @@
 import asyncio
+from datetime import timedelta
 from html import escape
 import uuid
 
+from bson import Binary
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse
 
@@ -16,6 +18,8 @@ from models.market import MarketContextResponse, MarketEvent
 
 router = APIRouter(tags=["market"])
 BENCHMARK_SYMBOL = "^NSEI"
+IMAGE_TTL = timedelta(hours=6)
+_render_slots = asyncio.Semaphore(2)  # Pillow rendering is CPU-bound; never let a burst starve the event loop
 
 
 async def _idea(idea_id: str) -> dict:
@@ -74,9 +78,20 @@ async def _card_series(idea: dict, benchmark: bool, hidden: set[str]) -> list[di
 @router.get("/share/{idea_id}/image.png")
 async def share_image(idea_id: str, period: str = Query("5Y", pattern="^(1Y|3Y|5Y)$"), benchmark: bool = False, hidden: str = ""):
     idea = await _idea(idea_id)
-    series = await _card_series(idea, benchmark, {item for item in hidden.split(",") if item})
-    png = await asyncio.to_thread(render_share_card, idea["observation"], series, period)
-    return Response(content=png, media_type="image/png", headers={"Cache-Control": "public, max-age=1800"})
+    tickers = {company["ticker"] for company in idea.get("companies", [])}
+    hidden_set = {item for item in hidden.split(",") if item in tickers}  # bounded cache keys
+    key = f"{idea_id}:{period}:{int(benchmark)}:{','.join(sorted(hidden_set))}"
+    headers = {"Cache-Control": "public, max-age=1800"}
+    cached = await db.share_image_cache.find_one({"key": key}, {"png": 1})
+    if cached:
+        return Response(content=bytes(cached["png"]), media_type="image/png", headers=headers)
+    series = await _card_series(idea, benchmark, hidden_set)
+    async with _render_slots:
+        png = await asyncio.to_thread(render_share_card, idea["observation"], series, period)
+    await db.share_image_cache.update_one(
+        {"key": key}, {"$set": {"key": key, "png": Binary(png), "expires_at": utc_now() + IMAGE_TTL}}, upsert=True
+    )
+    return Response(content=png, media_type="image/png", headers=headers)
 
 
 @router.get("/share-token", response_model=ShareTokenResponse)
@@ -113,7 +128,7 @@ async def share_page(
     scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
     host = request.headers.get("x-forwarded-host") or request.headers.get("host", request.url.netloc)
     base = f"{scheme}://{host}"
-    target = f"/?idea={idea_id}&view=recap&shared=1"
+    target = f"/?idea={idea_id}&shared=1&landing=friend"
     tickers = ", ".join(company["ticker"] for company in idea.get("companies", []))
     title = escape(f"“{idea['observation']}” — an Aaspaas read")
     description = escape(f"{tickers or 'No listed match'} · how these stocks travelled. Educational context, not a recommendation.")

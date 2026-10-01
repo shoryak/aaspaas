@@ -137,6 +137,19 @@ class DiscoveryResponse(BaseModel):
 
 class IdeaCreate(BaseModel):
     observation: str = Field(min_length=8, max_length=1200)
+    input_mode: Literal["typed", "voice"] = "typed"
+
+
+class TranscriptionResponse(BaseModel):
+    text: str
+    language: str | None = None
+    remaining: int
+
+
+class VoiceAllowanceResponse(BaseModel):
+    remaining: int
+    daily_limit: int
+    max_seconds: int
 
 
 class IdeaResponse(BaseModel):

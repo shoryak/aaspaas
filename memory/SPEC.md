@@ -44,3 +44,10 @@ Five-year historical enrichment uses Yahoo Finance daily adjusted close with ret
 - Share images cached in Mongo `share_image_cache` (6h TTL, key idea:period:benchmark:hidden; hidden filtered to the idea's tickers) and rendered with max 2 concurrent Pillow jobs.
 - Studio summary cached 60s per range; the refresh button passes `fresh=true`.
 - Indexes added for sessions (created/last_seen/share_token/referred_by), share_events (clicked_at/ref), share_opens, gut_checks.answered_at, events_cache, caches.
+
+## Voice input (Emergent-managed speech-to-text)
+- Model: OpenAI `whisper-1` via `emergentintegrations.llm.openai.OpenAISpeechToText`, key `EMERGENT_LLM_KEY` (backend/.env). Auto language detection (English/Hindi/Hinglish), text kept as spoken (no translation), prompt hints Indian everyday context.
+- UI: “Speak it instead” mic in the shared ObservationForm (landing + friend landing). Recording panel with live level bars, timer, 30s auto-stop, Done/Cancel; transcript is appended into the textarea for editing before submit. Hidden if MediaRecorder/getUserMedia unsupported or the page isn't a secure context.
+- API: `GET /api/voice/allowance` → {remaining, daily_limit, max_seconds}; `POST /api/transcribe` multipart (`audio`, `duration_ms`) → {text, language, remaining}. Formats webm/mp4/m4a/mp3/wav/ogg, ≤2 MB, ≤30s (413), unsupported type 415, silence/empty 422 (not counted), provider failure 502.
+- Limits: `STT_DAILY_LIMIT`=5 per visitor, `STT_IP_DAILY_LIMIT`=60 per network, `STT_GLOBAL_DAILY_CAP`=3000/day (503). Only successful transcriptions count. Stored in `transcriptions` (day, session, ip hash, language, seconds, bytes, cost_usd at $0.006/min).
+- Ideas carry `input_mode` (typed|voice). Studio shows “Ideas started by voice” (with top languages) and “Voice transcription spend”.

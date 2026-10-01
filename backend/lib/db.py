@@ -44,6 +44,11 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("opened_at", DESCENDING)], name="open_time"),
         IndexModel([("idea_id", ASCENDING)], name="open_idea"),
     ],
+    "transcriptions": [
+        IndexModel([("day", ASCENDING), ("session_id", ASCENDING)], name="stt_daily_session"),
+        IndexModel([("day", ASCENDING), ("ip_fingerprint", ASCENDING)], name="stt_daily_ip"),
+        IndexModel([("created_at", DESCENDING)], name="stt_time"),
+    ],
     "events_cache": [IndexModel([("symbol", ASCENDING)], name="events_symbol", unique=True)],
     "share_image_cache": [
         IndexModel([("key", ASCENDING)], name="share_image_key", unique=True),

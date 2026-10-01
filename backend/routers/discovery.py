@@ -184,7 +184,7 @@ async def create_idea(payload: IdeaCreate, request: Request, response: Response)
     generation_ms = round((time.perf_counter() - started) * 1000)
     discovery_mode = "curated_fallback" if used_fallback else "ai"
     doc = {
-        "id": idea_id, "observation": payload.observation,
+        "id": idea_id, "observation": payload.observation, "input_mode": payload.input_mode,
         "companies": [company.model_dump() for company in companies],
         "tickers": [company.ticker for company in companies], "session_id": session_id,
         "submitted_at": submitted_at, "discovery_mode": discovery_mode,

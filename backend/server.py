@@ -18,6 +18,7 @@ from routers.analytics import router as analytics_router
 from routers.discovery import router as discovery_router
 from routers.engagement import router as engagement_router
 from routers.market import router as market_router
+from routers.voice import router as voice_router
 
 
 @asynccontextmanager
@@ -40,6 +41,7 @@ api_router.include_router(discovery_router)
 api_router.include_router(engagement_router)
 api_router.include_router(analytics_router)
 api_router.include_router(market_router)
+api_router.include_router(voice_router)
 
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(

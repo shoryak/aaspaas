@@ -165,3 +165,6 @@ export interface MarketContextResponse {
   events_status: "live" | "cached" | "partial" | "unavailable";
   note: string;
 }
+
+export interface TranscriptionResponse { text: string; language: string | null; remaining: number }
+export interface VoiceAllowanceResponse { remaining: number; daily_limit: number; max_seconds: number }

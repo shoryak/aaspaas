@@ -115,12 +115,13 @@ async def _build_summary(days: int) -> StudioSummary:
     window = (lambda field: {field: {"$gte": since}}) if since else (lambda field: {})
     # MVP scale: pull lean projections and join in Python. Move to pre-aggregated rollups past ~100k sessions.
     sessions = await db.sessions.find(REAL, {"_id": 0, "id": 1, "created_at": 1, "last_seen_at": 1, "pageviews": 1, "acquired_via": 1, "referred_by_token": 1, "referred_idea_id": 1, "referral_channel": 1, "share_token": 1}).to_list(None)
-    ideas = await db.ideas.find(REAL, {"_id": 0, "id": 1, "session_id": 1, "submitted_at": 1, "discovery_mode": 1, "ai_cost_usd": 1, "generation_ms": 1, "tickers": 1, "observation": 1, "recap_completed_at": 1}).to_list(None)
+    ideas = await db.ideas.find(REAL, {"_id": 0, "id": 1, "session_id": 1, "input_mode": 1, "submitted_at": 1, "discovery_mode": 1, "ai_cost_usd": 1, "generation_ms": 1, "tickers": 1, "observation": 1, "recap_completed_at": 1}).to_list(None)
     shares = await db.share_events.find(REAL, {"_id": 0, "idea_id": 1, "session_id": 1, "clicked_at": 1, "channel": 1, "ref": 1, "surface": 1}).to_list(None)
     opens = await db.share_opens.find(window("opened_at"), {"_id": 0}).to_list(None)
     events = await db.engagement_events.find({"event_name": {"$in": HEALTH_EVENTS}, **window("created_at")}, {"_id": 0, "event_name": 1, "idea_id": 1, "session_id": 1, "properties": 1}).to_list(None)
     interests = await db.product_interests.find(window("created_at"), {"_id": 0, "kind": 1, "session_id": 1}).to_list(None)
     emails = await db.email_interests.find({"status": "subscribed"}, {"_id": 0, "session_id": 1, "consent_at": 1}).to_list(None)
+    voice = await db.transcriptions.find(window("created_at"), {"_id": 0, "session_id": 1, "cost_usd": 1, "language": 1, "seconds": 1}).to_list(None)
     checks = await db.gut_checks.find({**REAL, **window("answered_at")}, {"_id": 0, "matched": 1}).to_list(None)
 
     ideas_in = [idea for idea in ideas if in_range(idea.get("submitted_at"))]
@@ -271,6 +272,7 @@ async def _build_summary(days: int) -> StudioSummary:
         _metric("cost_per_engaged", "Cost / engaged idea", _ratio(total_cost, len(engaged_ideas)), _usd(_ratio(total_cost, len(engaged_ideas))), f"{_pct(_ratio(len(engaged_ideas), len(ideas_in)))} of ideas led to details, markers, Nifty, or recap."),
         _metric("cost_per_share", "Cost / share", _ratio(total_cost, len(shares_in)), _usd(_ratio(total_cost, len(shares_in)))),
         _metric("viral_cac", "Viral CAC", _ratio(total_cost, len(referred_new)), _usd(_ratio(total_cost, len(referred_new))), "AI spend ÷ visitors acquired through shares (no ad spend)."),
+        _metric("voice_cost", "Voice transcription spend", sum(row.get("cost_usd", 0) for row in voice), _usd(sum(row.get("cost_usd", 0) for row in voice)), f"Whisper · {len(voice):,} clips · {sum(row.get('seconds', 0) for row in voice) / 60:.1f} min."),
         _metric("fallback_rate", "Fallback rate", _ratio(fallback, len(ideas_in)), _pct(_ratio(fallback, len(ideas_in))), "Curated fallback instead of live AI (cost-free but lower quality)."),
         _metric("generation", "Median AI wait", statistics.median(generation) / 1000 if generation else None, f"{statistics.median(generation) / 1000:.1f}s" if generation else "—"),
     ]
@@ -292,6 +294,7 @@ async def _build_summary(days: int) -> StudioSummary:
         _metric("event_opens", "Filing markers opened", float(len(by_event["chart_event_opened"])), f"{len(by_event['chart_event_opened']):,}"),
         _metric("benchmark", "Nifty comparisons", float(len(by_event["benchmark_toggled"])), f"{len(by_event['benchmark_toggled']):,}"),
         _metric("friend_landing", "Friend landing → own clue", _ratio(len(by_event["friend_landing_submitted"]), len(by_event["friend_landing_viewed"])), _pct(_ratio(len(by_event["friend_landing_submitted"]), len(by_event["friend_landing_viewed"]))), f"{len(by_event['friend_landing_viewed']):,} shared-link landings."),
+        _metric("voice_ideas", "Ideas started by voice", _ratio(sum(1 for idea in ideas_in if idea.get("input_mode") == "voice"), len(ideas_in)), _pct(_ratio(sum(1 for idea in ideas_in if idea.get("input_mode") == "voice"), len(ideas_in))), f"{len({row['session_id'] for row in voice}):,} visitors used the mic · languages: {', '.join(f'{lang} {count}' for lang, count in Counter(row.get('language') or '?' for row in voice).most_common(3)) or '—'}."),
         _metric("tour", "Tour completion", _ratio(len(by_event["tour_completed"]), tours), _pct(_ratio(len(by_event["tour_completed"]), tours))),
         _metric("screener", "Screener handoffs", float(len(by_event["screener_outbound_clicked"])), f"{len(by_event['screener_outbound_clicked']):,}"),
     ]

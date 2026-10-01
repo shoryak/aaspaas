@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 
 import { ObservationForm } from "@/components/ObservationForm";
+import type { InputMode } from "@/components/ObservationForm";
 import { Button } from "@/components/ui/button";
 import { useEngagement } from "@/hooks/useEngagement";
 import type { IdeaResponse } from "@/lib/types";
@@ -11,7 +12,7 @@ const EASE = [0.22, 1, 0.36, 1] as const;
 
 /** Where shared links land: the visitor's own clue first, the friend's read underneath. */
 export function FriendLanding({ idea, observation, onObservation, onSubmit, onOpenRead }: {
-  idea: IdeaResponse; observation: string; onObservation: (value: string) => void; onSubmit: (value: string) => void; onOpenRead: () => void;
+  idea: IdeaResponse; observation: string; onObservation: (value: string) => void; onSubmit: (value: string, mode: InputMode) => void; onOpenRead: () => void;
 }) {
   const { track } = useEngagement();
   const logged = useRef(false);
@@ -30,7 +31,7 @@ export function FriendLanding({ idea, observation, onObservation, onSubmit, onOp
         <p className="lede" data-testid="friend-lede">{`Your friend turned one everyday observation into ${idea.companies.length || "no"} listed ${idea.companies.length === 1 ? "company" : "companies"}. Yours could be the queue at your chemist, the app everyone at work installed, or the brand suddenly in every kitchen.`}</p>
       </motion.div>
       <motion.section className="observation-panel friend-panel" data-testid="friend-observation-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, delay: .12, ease: EASE }}>
-        <ObservationForm value={observation} onChange={onObservation} submitLabel="Find my companies" placeholder="Lately I keep noticing…" onSubmit={(value) => { track({ event_name: "friend_landing_submitted", idea_id: idea.id }); onSubmit(value); }} />
+        <ObservationForm value={observation} onChange={onObservation} submitLabel="Find my companies" placeholder="Lately I keep noticing…" onSubmit={(value, mode) => { track({ event_name: "friend_landing_submitted", idea_id: idea.id, properties: { input_mode: mode } }); onSubmit(value, mode); }} />
       </motion.section>
     </section>
 

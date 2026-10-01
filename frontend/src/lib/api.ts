@@ -51,3 +51,10 @@ export async function apiBlob(path: string): Promise<Blob> {
   if (!res.ok) throw new ApiError(res.status, null);
   return res.blob();
 }
+
+// Multipart uploads (e.g. voice notes). The browser sets the multipart boundary header itself.
+export async function apiUpload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method: "POST", body: form });
+  if (!res.ok) throw new ApiError(res.status, await res.json().catch(() => null));
+  return (await res.json()) as T;
+}

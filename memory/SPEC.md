@@ -15,10 +15,11 @@ Aaspaas is an educational Indian stock-discovery experience based on “invest i
 
 ## Key flows
 1. Landing → submit observation (maximum three starts per UTC day by session and daily IP fingerprint) → rotating educational waiting view → Vertex AI company discovery.
-2. Story deck → five-step observation chain → verified Yahoo adjusted-price hook/full chart → one alternating question → business model, current data, scorecard, assumptions, field note, and Screener handoff.
-3. Recap → learning-style snapshot, score comparison, optional sharing, optional update consent, and clearly inactive broker-interest placeholder.
-4. `/discoveries` restores this browser's ideas, recap results, and saved field-note tickers.
-5. `/admin` → password login → aggregate funnel, latency, hook/chart/chain/question, retention, email, limit, fallback, Screener, and sharing signals.
+2. Results open on a scan-first comparison leaderboard with all companies, connection copy, mini quality pips, P/E and market-cap chips, and sorting by quality, moat, P/E, or market cap.
+3. Tapping a company opens a menu-driven detail workspace. Readers can open standout strengths, risks, business model, full scorecard, verified stock journey, research/Screener handoff, or an optional instinct game in any order; nothing is gated.
+4. Recap → learning-style snapshot, score comparison, optional sharing, optional update consent, and clearly inactive broker-interest placeholder.
+5. `/discoveries` restores this browser's ideas, recap results, and saved field-note tickers.
+6. `/admin` → password login → aggregate funnel, latency, comparison/detail/question, retention, email, limit, fallback, Screener, and sharing signals.
 
 ## Auth and roles
 The public flow is anonymous and uses an httpOnly `aaspaas_session` cookie. The internal dashboard uses a single `ADMIN_PASSWORD` environment value and an httpOnly admin cookie. There are no public user accounts.

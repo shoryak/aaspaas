@@ -57,7 +57,9 @@ async def list_discoveries(request: Request, response: Response):
 @router.get("/ideas/{idea_id}/companies/{ticker}/enrichment", response_model=EnrichmentResponse)
 async def enrich_company(idea_id: str, ticker: str, request: Request, response: Response):
     session_id = ensure_session(request, response)
-    idea = await _owned_idea(idea_id, session_id)
+    idea = await db.ideas.find_one({"id": idea_id})
+    if not idea:
+        raise HTTPException(status_code=404, detail="Discovery not found")
     company = next((item for item in idea.get("companies", []) if item.get("ticker") == ticker), None)
     if not company:
         raise HTTPException(status_code=404, detail="Company not found")

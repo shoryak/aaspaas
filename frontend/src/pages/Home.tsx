@@ -4,7 +4,7 @@ import { ArrowRight, BookOpen, Moon, Quote, Share2, Sparkles, Sun } from "lucide
 import { toast } from "sonner";
 
 import { EmailCapture } from "@/components/EmailCapture";
-import { StoryExperience } from "@/components/story/StoryExperience";
+import { ComparisonExperience } from "@/components/results/ComparisonExperience";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,7 +51,7 @@ function investorType(answers: Record<string, AnswerRecord>) {
   const attempted = rows.filter((answer) => !answer.skipped).length;
   const skipped = rows.filter((answer) => answer.skipped).length;
   const matched = rows.filter((answer) => answer.matched === true).length;
-  if (skipped > attempted) return "Storyteller";
+  if (attempted === 0 || skipped > attempted) return "Storyteller";
   if (attempted && matched / attempted < .5) return "Contrarian";
   return "Detective";
 }
@@ -126,7 +126,7 @@ export default function Home() {
   if (restored.isLoading && ideaId) return <WaitingView observation="Restoring your field note" />;
   if (view === "story" && idea) {
     if (!idea.companies.length) return <NoMatch observation={idea.observation} onTryAgain={reset} />;
-    return <StoryExperience idea={idea} activeIndex={activeIndex} answers={answers} onAnswer={(ticker, answer) => setAnswers((old) => ({ ...old, [ticker]: answer }))} onCompanyUpdate={updateCompany} onSavedChange={updateSaved} onIndexChange={setActiveIndex} onFinish={finishStory} />;
+    return <ComparisonExperience idea={idea} answers={answers} onAnswer={(ticker, answer) => setAnswers((old) => ({ ...old, [ticker]: answer }))} onCompanyUpdate={updateCompany} onSavedChange={updateSaved} onFinish={finishStory} />;
   }
   if (view === "recap" && idea) return <Recap idea={idea} answers={answers} onTryAgain={reset} />;
   return <main className="paper-page" data-testid="landing-page"><header className="site-header" data-testid="landing-header"><a href="/" className="wordmark" data-testid="aaspaas-wordmark">Aaspaas<span>.</span></a><div className="header-actions"><a className="studio-link" href="/discoveries" data-testid="my-discoveries-link">My Discoveries</a><a className="studio-link" href="/admin" data-testid="admin-dashboard-link">Studio</a><button className="theme-toggle" type="button" onClick={() => setDark(!dark)} aria-label="Toggle theme" data-testid="theme-toggle-button">{dark ? <Sun size={16} /> : <Moon size={16} />}<span>{dark ? "Light" : "Dark"}</span></button></div></header><div className="landing-layout"><section className="landing-copy" data-testid="landing-intro"><Badge className="eyebrow" data-testid="landing-eyebrow">EVERYDAY OBSERVATIONS → LISTED BUSINESSES</Badge><h1 data-testid="landing-headline">What have you<br /><em>noticed lately?</em></h1><p className="lede" data-testid="landing-lede">The things you keep seeing can be clues. Follow one through the business, the market’s expectations, and the evidence still worth checking.</p><div className="quote-block" data-testid="lynch-quote"><Quote size={20} /><div><p>“Invest in what you know.”</p><span>— Peter Lynch</span></div></div></section><section className="observation-panel" data-testid="observation-panel"><form onSubmit={(event) => { event.preventDefault(); if (observation.trim().length < 8) toast.error("Give us one useful sentence."); else discover.mutate(observation.trim()); }} data-testid="observation-form"><label htmlFor="observation" className="mono-label" data-testid="observation-label">YOUR OBSERVATION</label><Textarea id="observation" value={observation} onChange={(event) => setObservation(event.target.value)} placeholder="I keep noticing…" className="observation-input" data-testid="observation-textarea" /><div className="example-wrap" data-testid="example-chips"><span className="micro-label" data-testid="example-label">Try an example</span>{EXAMPLES.map((example, index) => <button key={example} type="button" className="example-chip" onClick={() => setObservation(example)} data-testid={`example-chip-${index + 1}`}>{example}</button>)}</div><Button type="submit" size="lg" className="discover-button" data-testid="discover-submit-button">Follow the clue <ArrowRight size={18} /></Button><p className="allowance-note" data-testid="daily-allowance-note">Three AI-powered discoveries per UTC day. Reading and sharing stay open.</p></form><div className="how-it-works" data-testid="scoring-explainer"><p className="mono-label" data-testid="scoring-explainer-title">HOW THE READ WORKS</p><div className="explainer-row"><span>01</span><p><strong>Trace the chain</strong> from your words to revenue and profit.</p></div><div className="explainer-row"><span>02</span><p><strong>See a verified price moment</strong> without inventing its cause.</p></div><div className="explainer-row"><span>03</span><p><strong>Keep your own homework</strong> with a field note and research prompts.</p></div></div></section></div><footer className="disclaimer" data-testid="landing-disclaimer">This is educational context, not a recommendation to buy or sell—Aaspaas doesn’t place trades or manage money. Verify real numbers yourself before acting.</footer></main>;

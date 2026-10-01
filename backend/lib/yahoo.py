@@ -15,7 +15,9 @@ from models.aaspaas import (
     PricePoint,
 )
 
-HEADERS = {"User-Agent": "Mozilla/5.0 Aaspaas educational client/1.0", "Accept": "application/json"}
+HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36", "Accept": "application/json"}
+CRUMB_TTL = timedelta(hours=6)
+_auth: dict = {"crumb": None, "cookies": {}, "expires_at": datetime.min.replace(tzinfo=timezone.utc)}
 FINANCE_TTL = timedelta(minutes=45)
 HISTORY_TTL = timedelta(hours=6)
 logger = logging.getLogger(__name__)
@@ -41,6 +43,30 @@ def yahoo_symbol(ticker: str, exchange: str) -> str:
     return f"{clean}.{'NS' if exchange == 'NSE' else 'BO'}"
 
 
+async def _yahoo_crumb(client: httpx.AsyncClient, force: bool = False) -> str | None:
+    """Yahoo's quote endpoints need a session cookie + crumb; cache both in-process."""
+    now = datetime.now(timezone.utc)
+    if not force and _auth["crumb"] and _auth["expires_at"] > now:
+        client.cookies.update(_auth["cookies"])
+        return _auth["crumb"]
+    await client.get("https://fc.yahoo.com")
+    response = await client.get("https://query2.finance.yahoo.com/v1/test/getcrumb", headers={"Accept": "*/*"})
+    crumb = response.text.strip() if response.is_success else ""
+    if not crumb or "<" in crumb or " " in crumb:
+        return None
+    _auth.update(crumb=crumb, cookies=dict(client.cookies), expires_at=now + CRUMB_TTL)
+    return crumb
+
+
+async def _yahoo_get(client: httpx.AsyncClient, url: str, params: dict) -> httpx.Response:
+    crumb = await _yahoo_crumb(client)
+    response = await client.get(url, params={**params, **({"crumb": crumb} if crumb else {})})
+    if response.status_code in (401, 403):
+        crumb = await _yahoo_crumb(client, force=True)
+        response = await client.get(url, params={**params, **({"crumb": crumb} if crumb else {})})
+    return response
+
+
 async def get_finance(ticker: str, exchange: str) -> FinanceData:
     symbol = yahoo_symbol(ticker, exchange)
     now = datetime.now(timezone.utc)
@@ -51,17 +77,17 @@ async def get_finance(ticker: str, exchange: str) -> FinanceData:
     try:
         async with httpx.AsyncClient(timeout=9, headers=HEADERS, follow_redirects=True) as client:
             row: dict = {}
-            quote_response = await client.get(
-                "https://query1.finance.yahoo.com/v7/finance/quote", params={"symbols": symbol}
+            quote_response = await _yahoo_get(
+                client, "https://query1.finance.yahoo.com/v7/finance/quote", {"symbols": symbol}
             )
             if quote_response.is_success:
                 results = quote_response.json().get("quoteResponse", {}).get("result", [])
                 row = results[0] if results else {}
             detail: dict = {}
             financial: dict = {}
-            summary = await client.get(
-                f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{quote(symbol)}",
-                params={"modules": "summaryDetail,financialData"},
+            summary = await _yahoo_get(
+                client, f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{quote(symbol)}",
+                {"modules": "summaryDetail,financialData"},
             )
             if summary.is_success:
                 results = summary.json().get("quoteSummary", {}).get("result", [])
@@ -134,8 +160,8 @@ def _historical_stats(points: list[PricePoint]) -> tuple[PriceMovement | None, P
     return largest_day, largest_month, max_drawdown, journey
 
 
-async def get_historical(ticker: str, exchange: str) -> HistoricalData:
-    symbol = yahoo_symbol(ticker, exchange)
+async def get_historical(ticker: str, exchange: str, symbol: str | None = None) -> HistoricalData:
+    symbol = symbol or yahoo_symbol(ticker, exchange)
     now = datetime.now(timezone.utc)
     cached = await db.historical_cache.find_one({"symbol": symbol})
     if cached and _aware(cached["expires_at"]) > now:

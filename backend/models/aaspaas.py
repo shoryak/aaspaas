@@ -179,6 +179,7 @@ class GutCheckResponse(BaseModel):
 
 class ShareCreate(BaseModel):
     idea_id: str
+    surface: Literal["recap", "chart"] = "recap"
 
 
 class RecordedResponse(BaseModel):

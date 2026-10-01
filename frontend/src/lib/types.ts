@@ -131,3 +131,23 @@ export interface AnalyticsSummary {
   engagement: DashboardMetric[];
   funnel: { key: string; label: string; count: number }[];
 }
+export type MarketEventKind = "results" | "filing" | "dividend" | "split";
+export interface MarketEvent {
+  date: string;
+  ticker: string;
+  company_name: string;
+  kind: MarketEventKind;
+  category: string;
+  summary: string;
+  url: string | null;
+  source: "NSE" | "Yahoo Finance";
+}
+export interface MarketContextResponse {
+  idea_id: string;
+  benchmark_name: string;
+  benchmark_points: PricePoint[];
+  benchmark_status: "live" | "cached" | "stale" | "unavailable";
+  events: MarketEvent[];
+  events_status: "live" | "cached" | "partial" | "unavailable";
+  note: string;
+}

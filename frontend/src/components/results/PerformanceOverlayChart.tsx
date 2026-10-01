@@ -1,15 +1,25 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import { Loader2, Share2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { EventPopover, clusterEvents, eventAllowed } from "@/components/results/ChartEvents";
+import type { EventFilter } from "@/components/results/ChartEvents";
+import { Button } from "@/components/ui/button";
+import { useEngagement } from "@/hooks/useEngagement";
+import { apiPost } from "@/lib/api";
 import { downsample, niceTicks, pointsForPeriod, rupees, shortDate, signedPercent, slug, toTime } from "@/lib/performance";
 import type { PeriodKey } from "@/lib/performance";
-import type { CompanyInsight } from "@/lib/types";
+import { shareLink, shareOrDownload, useShareImage } from "@/lib/share";
+import type { CompanyInsight, MarketContextResponse, PricePoint } from "@/lib/types";
 
 const SERIES_COLORS = ["#e0a35a", "#a394cf", "#7fb2d6", "#e9e5da"];
-const MARGIN = { top: 18, right: 18, bottom: 30, left: 52 };
+const BENCH_COLOR = "#9a9b96";
+const BENCH_KEY = "NIFTY 50";
+const MARGIN = { top: 18, right: 18, bottom: 58, left: 52 };
 
-interface SeriesPoint { t: number; pct: number; price: number; date: string }
-interface Series { ticker: string; name: string; color: string; points: SeriesPoint[]; endPct: number }
+interface SeriesPoint { t: number; pct: number; price: number }
+interface Series { ticker: string; name: string; color: string; points: SeriesPoint[]; endPct: number; benchmark?: boolean }
 
 function useElementWidth<T extends HTMLElement>() {
   const ref = useRef<T>(null);
@@ -35,48 +45,72 @@ function nearest(points: SeriesPoint[], t: number) {
   return Math.abs(prev.t - t) < Math.abs(points[low].t - t) ? prev : points[low];
 }
 
-export function PerformanceOverlayChart({ companies, period, loading }: { companies: CompanyInsight[]; period: PeriodKey; loading: boolean }) {
+function rebase(raw: PricePoint[], period: PeriodKey): SeriesPoint[] {
+  const points = pointsForPeriod(raw, period);
+  if (points.length < 2) return [];
+  const base = points[0].adjusted_close;
+  return points.map((point) => ({ t: toTime(point.date), pct: (point.adjusted_close / base - 1) * 100, price: point.adjusted_close }));
+}
+
+export function PerformanceOverlayChart({ ideaId, observation, companies, period, loading, context }: { ideaId: string; observation: string; companies: CompanyInsight[]; period: PeriodKey; loading: boolean; context?: MarketContextResponse }) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>();
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [hoverT, setHoverT] = useState<number | null>(null);
+  const [benchmarkOn, setBenchmarkOn] = useState(false);
+  const [eventFilter, setEventFilter] = useState<EventFilter>("key");
+  const [selectedGroup, setSelectedGroup] = useState<number | null>(null);
+  const { track } = useEngagement();
+  const hiddenList = [...hidden].sort();
+  const shareImage = useShareImage(ideaId, { period, benchmark: benchmarkOn, hidden: hiddenList });
+  useEffect(() => setSelectedGroup(null), [period, eventFilter, hidden, benchmarkOn, width]);
 
-  const series = useMemo<Series[]>(() => companies.flatMap((company, index) => {
+  const companySeries = useMemo<Series[]>(() => companies.flatMap((company, index) => {
     if (!company.historical.available) return [];
-    const raw = pointsForPeriod(company.historical.points, period);
-    if (raw.length < 2) return [];
-    const base = raw[0].adjusted_close;
-    const points = raw.map((point) => ({ t: toTime(point.date), pct: (point.adjusted_close / base - 1) * 100, price: point.adjusted_close, date: point.date }));
-    return [{ ticker: company.ticker, name: company.company_name, color: SERIES_COLORS[index % SERIES_COLORS.length], points, endPct: points[points.length - 1].pct }];
+    const points = rebase(company.historical.points, period);
+    return points.length ? [{ ticker: company.ticker, name: company.company_name, color: SERIES_COLORS[index % SERIES_COLORS.length], points, endPct: points[points.length - 1].pct }] : [];
   }), [companies, period]);
+  const benchmarkSeries = useMemo<Series | null>(() => {
+    const points = rebase(context?.benchmark_points ?? [], period);
+    return points.length ? { ticker: BENCH_KEY, name: "Nifty 50 benchmark", color: BENCH_COLOR, points, endPct: points[points.length - 1].pct, benchmark: true } : null;
+  }, [context, period]);
 
-  const visible = series.filter((item) => !hidden.has(item.ticker));
-  const height = width < 560 ? 270 : 360;
+  const visible = [...companySeries.filter((item) => !hidden.has(item.ticker)), ...(benchmarkOn && benchmarkSeries ? [benchmarkSeries] : [])];
+  const height = width < 560 ? 300 : 392;
   const innerW = Math.max(width - MARGIN.left - MARGIN.right, 10);
   const innerH = height - MARGIN.top - MARGIN.bottom;
+  const laneY = MARGIN.top + innerH + 20;
 
   const scale = useMemo(() => {
-    const pool = visible.length ? visible : series;
+    const pool = visible.length ? visible : companySeries;
     const tMin = Math.min(...pool.map((item) => item.points[0].t));
     const tMax = Math.max(...pool.map((item) => item.points[item.points.length - 1].t));
     const values = pool.flatMap((item) => item.points.map((point) => point.pct));
     const lo = Math.min(0, ...values), hi = Math.max(0, ...values), pad = Math.max((hi - lo) * .08, 2);
     return { tMin, tMax, yMin: lo - pad, yMax: hi + pad };
-  }, [visible, series]);
+  }, [visible, companySeries]);
 
   const x = (t: number) => MARGIN.left + ((t - scale.tMin) / Math.max(scale.tMax - scale.tMin, 1)) * innerW;
   const y = (pct: number) => MARGIN.top + (1 - (pct - scale.yMin) / Math.max(scale.yMax - scale.yMin, 1e-6)) * innerH;
-  const paths = series.map((item) => downsample(item.points, Math.max(60, Math.floor(innerW / 2))).map((point, index) => `${index === 0 ? "M" : "L"}${x(point.t).toFixed(1)},${y(point.pct).toFixed(1)}`).join(" "));
-  const yTicks = series.length ? niceTicks(scale.yMin, scale.yMax, width < 560 ? 4 : 5) : [];
+  const pathFor = (item: Series) => downsample(item.points, Math.max(60, Math.floor(innerW / 2))).map((point, index) => `${index === 0 ? "M" : "L"}${x(point.t).toFixed(1)},${y(point.pct).toFixed(1)}`).join(" ");
+  const yTicks = companySeries.length ? niceTicks(scale.yMin, scale.yMax, width < 560 ? 4 : 5) : [];
   const xCount = width < 560 ? 3 : 5;
-  const xTicks: number[] = series.length ? Array.from({ length: xCount }, (_, index) => scale.tMin + ((scale.tMax - scale.tMin) * index) / (xCount - 1)) : [];
+  const xTicks: number[] = companySeries.length ? Array.from({ length: xCount }, (_, index) => scale.tMin + ((scale.tMax - scale.tMin) * index) / (xCount - 1)) : [];
+
+  const colors = Object.fromEntries(companySeries.map((item) => [item.ticker, item.color]));
+  const groups = companySeries.length ? clusterEvents(
+    (context?.events ?? []).filter((event) => !hidden.has(event.ticker) && eventAllowed(event, eventFilter) && toTime(event.date) >= scale.tMin && toTime(event.date) <= scale.tMax),
+    (event) => x(toTime(event.date)),
+  ) : [];
+  const activeGroup = selectedGroup === null ? null : groups[selectedGroup] ?? null;
 
   const onPointer = (event: ReactPointerEvent<SVGSVGElement>) => {
-    if (!series.length) return;
+    if (!companySeries.length) return;
     const rect = event.currentTarget.getBoundingClientRect();
+    if (event.clientY - rect.top > MARGIN.top + innerH + 4) return;
     const ratio = Math.min(Math.max((event.clientX - rect.left - MARGIN.left) / innerW, 0), 1);
     setHoverT(scale.tMin + ratio * (scale.tMax - scale.tMin));
   };
-  const hoverRows = hoverT === null ? [] : visible.map((item) => ({ item, point: nearest(item.points, hoverT) })).sort((a, b) => b.point.pct - a.point.pct);
+  const hoverRows = hoverT === null || activeGroup ? [] : visible.map((item) => ({ item, point: nearest(item.points, hoverT) })).sort((a, b) => b.point.pct - a.point.pct);
   const hoverX = hoverRows.length ? x(hoverRows[0].point.t) : 0;
 
   const toggle = (ticker: string) => setHidden((current) => {
@@ -84,15 +118,41 @@ export function PerformanceOverlayChart({ companies, period, loading }: { compan
     if (next.has(ticker)) next.delete(ticker); else next.add(ticker);
     return next;
   });
+  const openGroup = (index: number) => {
+    const next = selectedGroup === index ? null : index;
+    setSelectedGroup(next);
+    setHoverT(null);
+    if (next !== null) track({ event_name: "chart_event_opened", idea_id: ideaId, properties: { count: groups[index].events.length, kinds: [...new Set(groups[index].events.map((event) => event.kind))], period } });
+  };
+  const shareChart = async () => {
+    const outcome = await shareOrDownload({ blob: shareImage.data, title: "Aaspaas · how these stocks travelled", text: `“${observation}” — ${period} comparison on Aaspaas (educational, not advice)`, url: shareLink(ideaId, period) });
+    if (outcome === "cancelled") return;
+    void apiPost<{ recorded: boolean }>("/shares", { idea_id: ideaId, surface: "chart" }).catch(() => undefined);
+    track({ event_name: "chart_shared", idea_id: ideaId, properties: { period, benchmark: benchmarkOn, hidden: hiddenList.length, outcome } });
+    toast.success(outcome === "shared" ? "Chart shared." : "Chart image downloaded and link copied.");
+  };
+  const eventsNote = context?.events_status === "unavailable" ? "NSE filings unavailable right now · showing Yahoo payouts only" : context?.events_status === "partial" ? "Some NSE filings could not load" : null;
 
   return <div className="overlay-chart" data-testid="overlay-chart">
     <div className="overlay-chart-head">
-      <div><span className="overlay-kicker" data-testid="overlay-chart-kicker">ALL COMPANIES · ONE CANVAS · {period}</span><p data-testid="overlay-chart-caption">Each line starts at 0% on the first trading day of the period, so different share prices compare fairly.</p></div>
-      <span className="overlay-hint" data-testid="overlay-chart-hint">Hover or tap the chart · tap a name to hide it</span>
+      <div><span className="overlay-kicker" data-testid="overlay-chart-kicker">{`ALL COMPANIES · ONE CANVAS · ${period}`}</span><p data-testid="overlay-chart-caption">Each line starts at 0% on the first trading day of the period, so different share prices compare fairly.</p></div>
+      <Button type="button" variant="outline" className="share-chart-button" onClick={() => void shareChart()} disabled={!companySeries.length} data-testid="share-chart-button">{shareImage.isFetching ? <Loader2 size={14} className="spin" /> : <Share2 size={14} />}Share chart</Button>
+    </div>
+    <div className="overlay-controls" data-testid="overlay-controls">
+      <button type="button" className={benchmarkOn ? "nifty-toggle on" : "nifty-toggle"} aria-pressed={benchmarkOn} disabled={!benchmarkSeries} onClick={() => { setBenchmarkOn(!benchmarkOn); track({ event_name: "benchmark_toggled", idea_id: ideaId, properties: { on: !benchmarkOn, period } }); }} data-testid="nifty-toggle">
+        <span className="nifty-switch" aria-hidden="true"><i /></span>
+        <span className="nifty-label">{benchmarkSeries ? "Compare with Nifty 50" : context ? "Nifty 50 unavailable" : "Loading Nifty 50"}</span>
+        {benchmarkOn && benchmarkSeries && <strong className={benchmarkSeries.endPct >= 0 ? "movement-positive" : "movement-negative"} data-testid="nifty-change">{signedPercent(benchmarkSeries.endPct)}</strong>}
+      </button>
+      <div className="event-filter" role="group" aria-label="Event markers" data-testid="event-filter">
+        <span className="event-filter-label">Markers</span>
+        <button type="button" className={eventFilter === "key" ? "active" : ""} aria-pressed={eventFilter === "key"} onClick={() => setEventFilter("key")} data-testid="event-filter-key">Key filings</button>
+        <button type="button" className={eventFilter === "results" ? "active" : ""} aria-pressed={eventFilter === "results"} onClick={() => setEventFilter("results")} data-testid="event-filter-results">Results & payouts</button>
+      </div>
     </div>
     <div className="overlay-legend" data-testid="overlay-legend">
       {companies.map((company) => {
-        const item = series.find((row) => row.ticker === company.ticker);
+        const item = companySeries.find((row) => row.ticker === company.ticker);
         const off = hidden.has(company.ticker);
         return <button type="button" key={company.ticker} disabled={!item} aria-pressed={item ? !off : undefined} className={off ? "off" : ""} onClick={() => toggle(company.ticker)} data-testid={`overlay-legend-${slug(company.ticker)}`}>
           <i style={{ background: item?.color ?? "#4a4c50" }} />
@@ -102,20 +162,39 @@ export function PerformanceOverlayChart({ companies, period, loading }: { compan
       })}
     </div>
     <div className="overlay-canvas" ref={wrapRef} style={{ height }}>
-      {!series.length ? <div className={loading ? "overlay-empty overlay-loading" : "overlay-empty"} data-testid={loading ? "overlay-chart-loading" : "overlay-chart-unavailable"}>{loading ? <><i /><i /><i /></> : <p>Price history is unavailable for these companies right now. No movement is estimated.</p>}</div> : width > 0 && <>
-        <svg width={width} height={height} role="img" aria-label={`Percentage movement of ${series.map((item) => item.ticker).join(", ")} over ${period}`} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={(event) => { if (event.pointerType === "mouse") setHoverT(null); }} data-testid="overlay-chart-svg">
+      {!companySeries.length ? <div className={loading ? "overlay-empty overlay-loading" : "overlay-empty"} data-testid={loading ? "overlay-chart-loading" : "overlay-chart-unavailable"}>{loading ? <><i /><i /><i /></> : <p>Price history is unavailable for these companies right now. No movement is estimated.</p>}</div> : width > 0 && <>
+        <svg width={width} height={height} role="img" aria-label={`Percentage movement of ${companySeries.map((item) => item.ticker).join(", ")} over ${period}`} onPointerMove={onPointer} onPointerDown={onPointer} onPointerLeave={(event) => { if (event.pointerType === "mouse") setHoverT(null); }} data-testid="overlay-chart-svg">
           {yTicks.map((tick) => <g key={tick} className="overlay-tick"><line x1={MARGIN.left} x2={width - MARGIN.right} y1={y(tick)} y2={y(tick)} className={tick === 0 ? "overlay-zero" : ""} /><text x={MARGIN.left - 9} y={y(tick)} dy="0.32em" textAnchor="end">{`${tick > 0 ? "+" : ""}${tick}%`}</text></g>)}
-          {xTicks.map((tick, index) => <text key={tick} className="overlay-xlabel" x={x(tick)} y={height - 9} textAnchor={index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle"}>{shortDate(tick)}</text>)}
-          {series.map((item, index) => <path key={`${item.ticker}-${period}`} d={paths[index]} pathLength={1} className={hidden.has(item.ticker) ? "overlay-line hidden-line" : "overlay-line"} style={{ stroke: item.color, animationDelay: `${index * 160}ms` }} data-testid={`overlay-line-${slug(item.ticker)}`} />)}
+          {xTicks.map((tick, index) => <text key={tick} className="overlay-xlabel" x={x(tick)} y={height - 8} textAnchor={index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle"}>{shortDate(tick)}</text>)}
+          <line className="event-lane" x1={MARGIN.left} x2={width - MARGIN.right} y1={laneY} y2={laneY} />
+          {activeGroup && <line className="event-guide" x1={activeGroup.x} x2={activeGroup.x} y1={MARGIN.top} y2={laneY - 8} data-testid="event-guide" />}
+          {benchmarkOn && benchmarkSeries && <path key={`bench-${period}`} d={pathFor(benchmarkSeries)} className="overlay-line overlay-benchmark" data-testid="overlay-line-nifty" />}
+          {companySeries.map((item, index) => <path key={`${item.ticker}-${period}`} d={pathFor(item)} pathLength={1} className={hidden.has(item.ticker) ? "overlay-line hidden-line" : "overlay-line"} style={{ stroke: item.color, animationDelay: `${index * 160}ms` }} data-testid={`overlay-line-${slug(item.ticker)}`} />)}
           {visible.map((item) => { const last = item.points[item.points.length - 1]; return <circle key={`${item.ticker}-end-${period}`} className="overlay-end-dot" cx={x(last.t)} cy={y(last.pct)} r={3.5} style={{ fill: item.color }} />; })}
+          {groups.map((group, index) => {
+            const tickers = new Set(group.events.map((event) => event.ticker));
+            const fill = tickers.size === 1 ? colors[group.events[0].ticker] : "#efeee8";
+            const hasResults = group.events.some((event) => event.kind === "results");
+            return <g key={`${period}-${eventFilter}-${index}`} transform={`translate(${group.x.toFixed(1)},${laneY})`} className={selectedGroup === index ? "event-marker active" : "event-marker"} role="button" tabIndex={0} aria-label={`${group.events.length} filings or payouts`} onPointerDown={(event) => event.stopPropagation()} onClick={() => openGroup(index)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); openGroup(index); } }} data-testid={`event-marker-${index}`}>
+              <circle r={12} className="event-hit" />
+              <g className="event-marker-shape" style={{ animationDelay: `${Math.min(index * 14, 900) + 900}ms` }}>
+                {hasResults ? <rect x={-4.5} y={-4.5} width={9} height={9} transform="rotate(45)" style={{ fill }} /> : <circle r={4.5} style={{ fill }} />}
+                {group.events.length > 1 && <text y={-10} textAnchor="middle" className="event-count">{String(group.events.length)}</text>}
+              </g>
+            </g>;
+          })}
           {hoverRows.length > 0 && <g className="overlay-hover" data-testid="overlay-hover-marker"><line x1={hoverX} x2={hoverX} y1={MARGIN.top} y2={MARGIN.top + innerH} />{hoverRows.map(({ item, point }) => <circle key={item.ticker} cx={x(point.t)} cy={y(point.pct)} r={5} style={{ stroke: item.color }} />)}</g>}
         </svg>
         {hoverRows.length > 0 && <div className="overlay-tooltip" style={{ left: hoverX, transform: hoverX > width * .55 ? "translateX(calc(-100% - 14px))" : "translateX(14px)" }} data-testid="overlay-tooltip">
           <span className="overlay-tooltip-date" data-testid="overlay-tooltip-date">{new Date(hoverRows[0].point.t).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}</span>
-          {hoverRows.map(({ item, point }) => <div key={item.ticker} className="overlay-tooltip-row" data-testid={`overlay-tooltip-row-${slug(item.ticker)}`}><i style={{ background: item.color }} /><span>{item.ticker}</span><strong className={point.pct >= 0 ? "movement-positive" : "movement-negative"}>{signedPercent(point.pct)}</strong><em>{rupees(point.price)}</em></div>)}
+          {hoverRows.map(({ item, point }) => <div key={item.ticker} className={item.benchmark ? "overlay-tooltip-row benchmark" : "overlay-tooltip-row"} data-testid={`overlay-tooltip-row-${slug(item.ticker)}`}><i style={{ background: item.color }} /><span>{item.ticker}</span><strong className={point.pct >= 0 ? "movement-positive" : "movement-negative"}>{signedPercent(point.pct)}</strong><em>{item.benchmark ? point.price.toFixed(0) : rupees(point.price)}</em></div>)}
         </div>}
+        {activeGroup && <EventPopover group={activeGroup} colors={colors} left={Math.min(Math.max(activeGroup.x - 160, 4), Math.max(width - 324, 4))} bottom={height - laneY + 16} onClose={() => setSelectedGroup(null)} />}
       </>}
     </div>
-    <p className="overlay-source" data-testid="overlay-chart-source">Yahoo Finance · daily adjusted close · rebased to 0% · movement is not a ranking or a recommendation</p>
+    <div className="overlay-footnotes">
+      <p className="overlay-source" data-testid="overlay-chart-source">Yahoo Finance · daily adjusted close · rebased to 0% · movement is not a ranking or a recommendation</p>
+      <p className="overlay-source" data-testid="event-legend">{eventsNote ?? "Markers: ◆ results · ● filings & payouts · NSE announcements + Yahoo payouts · tap for context"}</p>
+    </div>
   </div>;
 }

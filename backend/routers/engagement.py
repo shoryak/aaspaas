@@ -101,7 +101,7 @@ async def record_share(payload: ShareCreate, request: Request, response: Respons
     if not await db.ideas.find_one({"id": payload.idea_id}, {"id": 1}):
         raise HTTPException(status_code=404, detail="Discovery not found")
     await db.share_events.insert_one({
-        "id": str(uuid.uuid4()), "idea_id": payload.idea_id, "session_id": session_id,
+        "id": str(uuid.uuid4()), "idea_id": payload.idea_id, "surface": payload.surface, "session_id": session_id,
         "clicked_at": utc_now(), "is_demo": False,
     })
     return RecordedResponse(recorded=True)

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQueries } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ArrowRight, BarChart3, Bookmark, BookmarkCheck, Building2, ExternalLink, Lightbulb, ListChecks, Search, ShieldAlert, Sparkles, Target } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,9 +11,19 @@ import { apiGet, apiPost } from "@/lib/api";
 import { downsample, periodStats, pointsForPeriod, rupees, signedPercent, slug } from "@/lib/performance";
 import type { PeriodKey } from "@/lib/performance";
 import { PerformanceOverlayChart } from "@/components/results/PerformanceOverlayChart";
-import type { AnswerRecord, CompanyInsight, EnrichmentResponse, IdeaResponse, PricePoint, ScoreAxis } from "@/lib/types";
+import type { AnswerRecord, CompanyInsight, EnrichmentResponse, IdeaResponse, MarketContextResponse, PricePoint, ScoreAxis } from "@/lib/types";
 
-type SortKey = "quality" | "moat" | "pe" | "market_cap";
+type SortKey = "quality" | ScoreAxis["key"] | "pe" | "market_cap";
+
+const CATEGORIES: { key: SortKey; label: string; hint: string }[] = [
+  { key: "quality", label: "Overall quality", hint: "Average of four lenses" },
+  { key: "moat", label: "Moat & pricing power", hint: "AI judgment" },
+  { key: "capital_allocation", label: "Capital allocation", hint: "AI judgment" },
+  { key: "management", label: "Management", hint: "AI judgment" },
+  { key: "growth_runway", label: "Growth runway", hint: "AI judgment" },
+  { key: "pe", label: "P/E · lowest", hint: "Yahoo Finance" },
+  { key: "market_cap", label: "Market cap · largest", hint: "Yahoo Finance" },
+];
 type DetailSection = "standout" | "risk" | "model" | "scorecard" | "market" | "verify" | "instinct";
 
 const averageScore = (company: CompanyInsight) => company.scorecard.reduce((sum, axis) => sum + axis.score, 0) / Math.max(company.scorecard.length, 1);
@@ -22,25 +32,63 @@ const marketCap = (value: number | null) => value === null ? "—" : new Intl.Nu
 const number = (value: number | null) => value === null ? "—" : value.toFixed(1);
 const percent = (value: number | null) => value === null ? "—" : `${value.toFixed(1)}%`;
 
-function MiniPips({ score, label, testId }: { score: number; label: string; testId: string }) {
-  return <div className="comparison-pip-row" data-testid={testId}><span data-testid={`${testId}-label`}>{label}</span><div aria-label={`${label}: ${score} out of 5`} data-testid={`${testId}-pips`}>{[1, 2, 3, 4, 5].map((pip) => <i key={pip} className={pip <= score ? "filled" : ""} />)}</div></div>;
+function categoryValue(company: CompanyInsight, key: SortKey): number | null {
+  if (key === "quality") return averageScore(company);
+  if (key === "pe") return company.finance.pe_ratio !== null && company.finance.pe_ratio > 0 ? company.finance.pe_ratio : null;
+  if (key === "market_cap") return company.finance.market_cap;
+  return axisScore(company, key) || null;
+}
+function categoryDisplay(key: SortKey, value: number | null) {
+  if (value === null) return "No data";
+  if (key === "quality") return `${value.toFixed(1)} / 5`;
+  if (key === "pe") return `P/E ${value.toFixed(1)}`;
+  if (key === "market_cap") return `₹${marketCap(value)}`;
+  return `${value} / 5`;
+}
+function rankBy(companies: CompanyInsight[], key: SortKey) {
+  const direction = key === "pe" ? 1 : -1;
+  return [...companies].sort((a, b) => {
+    const left = categoryValue(a, key), right = categoryValue(b, key);
+    if (left === null) return right === null ? 0 : 1;
+    if (right === null) return -1;
+    return (left - right) * direction;
+  });
 }
 
-function ComparisonCard({ company, rank, loading, onExplore, onIntuition }: { company: CompanyInsight; rank: number; loading: boolean; onExplore: () => void; onIntuition: () => void }) {
+function CategoryCards({ companies, active, onSelect }: { companies: CompanyInsight[]; active: SortKey; onSelect: (key: SortKey) => void }) {
+  return <div className="category-cards" role="group" aria-label="Rank business cards by" data-testid="category-cards">{CATEGORIES.map((category) => {
+    const [leader] = rankBy(companies, category.key);
+    const value = leader ? categoryValue(leader, category.key) : null;
+    const tied = value === null ? [] : companies.filter((company) => categoryValue(company, category.key) === value);
+    return <button type="button" key={category.key} className={active === category.key ? "category-card active" : "category-card"} aria-pressed={active === category.key} onClick={() => onSelect(category.key)} data-testid={`category-card-${category.key}`}>
+      <span className="category-card-label">{category.label}</span>
+      <strong className="category-card-leader" data-testid={`category-leader-${category.key}`}>{value === null ? "—" : tied.length > 1 ? `${tied.length}-way tie` : leader.ticker}</strong>
+      <span className="category-card-value" data-testid={`category-value-${category.key}`}>{categoryDisplay(category.key, value)}</span>
+      {tied.length > 1 && <span className="category-card-tied" data-testid={`category-tied-${category.key}`}>{tied.map((company) => company.ticker).join(" · ")}</span>}
+      <small className="category-card-hint">{category.hint}</small>
+    </button>;
+  })}</div>;
+}
+
+function MiniPips({ score, label, testId, active }: { score: number; label: string; testId: string; active: boolean }) {
+  return <div className={active ? "comparison-pip-row active" : "comparison-pip-row"} data-testid={testId}><span data-testid={`${testId}-label`}>{label}</span><div aria-label={`${label}: ${score} out of 5`} data-testid={`${testId}-pips`}>{[1, 2, 3, 4, 5].map((pip) => <i key={pip} className={pip <= score ? "filled" : ""} />)}</div></div>;
+}
+
+function ComparisonCard({ company, rank, loading, sort, onExplore, onIntuition }: { company: CompanyInsight; rank: number; loading: boolean; sort: SortKey; onExplore: () => void; onIntuition: () => void }) {
   return <article className="comparison-card" data-testid={`comparison-card-${slug(company.ticker)}`}>
     <div className="comparison-card-button">
       <div className="comparison-rank-row"><span data-testid={`comparison-rank-${slug(company.ticker)}`}>#{rank}</span><Badge className={`strength-badge strength-${company.connection_strength}`} data-testid={`comparison-strength-${slug(company.ticker)}`}>{company.connection_strength}</Badge></div>
       <p className="comparison-ticker" data-testid={`comparison-ticker-${slug(company.ticker)}`}>{company.exchange} · {company.ticker}</p>
       <h2 data-testid={`comparison-name-${slug(company.ticker)}`}>{company.company_name}</h2>
       <p className="comparison-connection" data-testid={`comparison-connection-${slug(company.ticker)}`}>{company.connection}</p>
-      <div className="comparison-score" data-testid={`comparison-score-${slug(company.ticker)}`}><strong>{averageScore(company).toFixed(1)}</strong><span>quality read / 5</span></div>
+      <div className={sort === "quality" ? "comparison-score active" : "comparison-score"} data-testid={`comparison-score-${slug(company.ticker)}`}><strong>{averageScore(company).toFixed(1)}</strong><span>quality read / 5</span></div>
       <div className="comparison-pips" data-testid={`comparison-pips-${slug(company.ticker)}`}>
-        <MiniPips score={axisScore(company, "moat")} label="Moat" testId={`mini-moat-${slug(company.ticker)}`} />
-        <MiniPips score={axisScore(company, "capital_allocation")} label="Capital" testId={`mini-capital-${slug(company.ticker)}`} />
-        <MiniPips score={axisScore(company, "management")} label="Management" testId={`mini-management-${slug(company.ticker)}`} />
-        <MiniPips score={axisScore(company, "growth_runway")} label="Growth" testId={`mini-growth-${slug(company.ticker)}`} />
+        <MiniPips score={axisScore(company, "moat")} label="Moat" testId={`mini-moat-${slug(company.ticker)}`} active={sort === "moat"} />
+        <MiniPips score={axisScore(company, "capital_allocation")} label="Capital" testId={`mini-capital-${slug(company.ticker)}`} active={sort === "capital_allocation"} />
+        <MiniPips score={axisScore(company, "management")} label="Management" testId={`mini-management-${slug(company.ticker)}`} active={sort === "management"} />
+        <MiniPips score={axisScore(company, "growth_runway")} label="Growth" testId={`mini-growth-${slug(company.ticker)}`} active={sort === "growth_runway"} />
       </div>
-      {loading ? <div className="comparison-data-skeleton" data-testid={`comparison-data-loading-${slug(company.ticker)}`}><i /><i /></div> : <div className="comparison-data-chips" data-testid={`comparison-data-${slug(company.ticker)}`}><span>P/E <strong>{number(company.finance.pe_ratio)}</strong></span><span>Market cap <strong>{marketCap(company.finance.market_cap)}</strong></span></div>}
+      {loading ? <div className="comparison-data-skeleton" data-testid={`comparison-data-loading-${slug(company.ticker)}`}><i /><i /></div> : <div className="comparison-data-chips" data-testid={`comparison-data-${slug(company.ticker)}`}><span className={sort === "pe" ? "active" : ""}>P/E <strong>{number(company.finance.pe_ratio)}</strong></span><span className={sort === "market_cap" ? "active" : ""}>Market cap <strong>{marketCap(company.finance.market_cap)}</strong></span></div>}
       <div className="company-card-actions" data-testid={`business-actions-${slug(company.ticker)}`}><Button type="button" onClick={onExplore} data-testid={`business-explore-${slug(company.ticker)}`}>Explore details <ArrowRight size={14} /></Button><Button type="button" variant="outline" onClick={onIntuition} data-testid={`business-intuition-${slug(company.ticker)}`}>Test your intuition <Target size={14} /></Button></div>
     </div>
   </article>;
@@ -75,9 +123,10 @@ function PerformanceCard({ company, period, loading, onExplore, onIntuition }: {
   return <article className="performance-card" data-testid={`performance-card-${slug(company.ticker)}`}><div className="performance-card-top"><div><span className="performance-ticker" data-testid={`performance-ticker-${slug(company.ticker)}`}>{company.exchange} · {company.ticker}</span><h3 data-testid={`performance-name-${slug(company.ticker)}`}>{company.company_name}</h3></div><Badge className={`status-badge status-${company.historical.status}`} data-testid={`performance-status-${slug(company.ticker)}`}>{company.historical.status}</Badge></div>{loading ? <div className="performance-skeleton" data-testid={`performance-loading-${slug(company.ticker)}`}><i /><i /><i /></div> : stats && company.historical.available ? <><PerformanceMiniChart key={period} points={points} ticker={company.ticker} /><div className="performance-price-row" data-testid={`performance-prices-${slug(company.ticker)}`}><span>Share price</span><strong>{rupees(stats.startPrice)}</strong><ArrowRight size={13} /><strong>{rupees(stats.endPrice)}</strong></div><div className="performance-stat-row"><div><span>Total adjusted movement</span><strong className={stats.movement >= 0 ? "movement-positive" : "movement-negative"} data-testid={`performance-movement-${slug(company.ticker)}`}>{signedPercent(stats.movement)}</strong></div><div><span>Maximum drawdown</span><strong className="movement-negative" data-testid={`performance-drawdown-${slug(company.ticker)}`}>{`${stats.drawdown.toFixed(1)}%`}</strong></div></div><div className="performance-dates" data-testid={`performance-dates-${slug(company.ticker)}`}><span>{stats.start}</span><ArrowRight size={12} /><span>{stats.end}</span></div></> : <div className="performance-unavailable" data-testid={`performance-unavailable-${slug(company.ticker)}`}><BarChart3 size={22} /><strong>Price history unavailable</strong><p>No movement is estimated. Business context remains available below.</p></div>}<p className="performance-source" data-testid={`performance-source-${slug(company.ticker)}`}>Yahoo Finance · adjusted close in ₹ · as of {company.historical.as_of ?? "unavailable"}</p><div className="company-card-actions performance-actions" data-testid={`performance-actions-${slug(company.ticker)}`}><Button type="button" onClick={onExplore} data-testid={`performance-explore-${slug(company.ticker)}`}>Explore details <ArrowRight size={14} /></Button><Button type="button" variant="outline" onClick={onIntuition} data-testid={`performance-intuition-${slug(company.ticker)}`}>Test your intuition <Target size={14} /></Button></div></article>;
 }
 
-function PerformanceSection({ companies, loading, onExplore, onIntuition, onPeriodChange }: { companies: CompanyInsight[]; loading: boolean[]; onExplore: (ticker: string) => void; onIntuition: (ticker: string) => void; onPeriodChange: (period: PeriodKey) => void }) {
+function PerformanceSection({ ideaId, observation, companies, loading, onExplore, onIntuition, onPeriodChange }: { ideaId: string; observation: string; companies: CompanyInsight[]; loading: boolean[]; onExplore: (ticker: string) => void; onIntuition: (ticker: string) => void; onPeriodChange: (period: PeriodKey) => void }) {
   const [period, setPeriod] = useState<PeriodKey>("5Y");
-  return <section className="performance-section" data-testid="performance-section"><div className="performance-section-heading"><div><span className="mono-label" data-testid="performance-kicker">VERIFIED MARKET CONTEXT · NOT A RANKING</span><h2 data-testid="performance-title">How these stocks<br /><em>travelled.</em></h2><p data-testid="performance-intro">Adjusted-price history can spark a question. It cannot prove business quality, predict future returns, or tell you to buy or sell.</p></div><div className="performance-period-control" data-testid="performance-period-control"><span>Shared period</span><div>{(["1Y", "3Y", "5Y"] as PeriodKey[]).map((option) => <button type="button" className={period === option ? "active" : ""} onClick={() => { setPeriod(option); onPeriodChange(option); }} key={option} data-testid={`performance-period-${option.toLowerCase()}`}>{option}</button>)}</div></div></div><PerformanceOverlayChart companies={companies} period={period} loading={loading.some(Boolean)} /><div className="performance-grid" data-testid="performance-grid">{companies.map((company, index) => <PerformanceCard key={company.id} company={company} period={period} loading={loading[index]} onExplore={() => onExplore(company.ticker)} onIntuition={() => onIntuition(company.ticker)} />)}</div><p className="performance-disclaimer" data-testid="performance-disclaimer">Source: Yahoo Finance daily adjusted close. Dividends and splits returned by the source remain visible in each company’s Stock journey detail. Historical movement is educational context—not a recommendation.</p></section>;
+  const context = useQuery({ queryKey: ["market-context", ideaId], queryFn: () => apiGet<MarketContextResponse>(`/ideas/${ideaId}/market-context`), staleTime: 10 * 60 * 1000, retry: 1 });
+  return <section className="performance-section" data-testid="performance-section"><div className="performance-section-heading"><div><span className="mono-label" data-testid="performance-kicker">VERIFIED MARKET CONTEXT · NOT A RANKING</span><h2 data-testid="performance-title">How these stocks<br /><em>travelled.</em></h2><p data-testid="performance-intro">Adjusted-price history can spark a question. It cannot prove business quality, predict future returns, or tell you to buy or sell.</p></div><div className="performance-period-control" data-testid="performance-period-control"><span>Shared period</span><div>{(["1Y", "3Y", "5Y"] as PeriodKey[]).map((option) => <button type="button" className={period === option ? "active" : ""} onClick={() => { setPeriod(option); onPeriodChange(option); }} key={option} data-testid={`performance-period-${option.toLowerCase()}`}>{option}</button>)}</div></div></div><PerformanceOverlayChart ideaId={ideaId} observation={observation} companies={companies} period={period} loading={loading.some(Boolean)} context={context.data} /><div className="performance-grid" data-testid="performance-grid">{companies.map((company, index) => <PerformanceCard key={company.id} company={company} period={period} loading={loading[index]} onExplore={() => onExplore(company.ticker)} onIntuition={() => onIntuition(company.ticker)} />)}</div><p className="performance-disclaimer" data-testid="performance-disclaimer">Source: Yahoo Finance daily adjusted close. Dividends and splits returned by the source remain visible in each company’s Stock journey detail. Historical movement is educational context—not a recommendation.</p></section>;
 }
 
 function PriceChart({ points, ticker }: { points: PricePoint[]; ticker: string }) {
@@ -174,12 +223,7 @@ export function ComparisonExperience({ idea, answers, onAnswer, onCompanyUpdate,
       track({ event_name: "performance_card_viewed", idea_id: idea.id, ticker: company.ticker, properties: { historical_status: company.historical.status, render_latency_ms: enrichment[index].data?.latency_ms ?? 0 } });
     });
   }, [dataSignature]);
-  const sorted = [...companies].sort((a, b) => {
-    if (sort === "quality") return averageScore(b) - averageScore(a);
-    if (sort === "moat") return axisScore(b, "moat") - axisScore(a, "moat");
-    if (sort === "pe") return (a.finance.pe_ratio ?? Number.MAX_VALUE) - (b.finance.pe_ratio ?? Number.MAX_VALUE);
-    return (b.finance.market_cap ?? -1) - (a.finance.market_cap ?? -1);
-  });
+  const sorted = rankBy(companies, sort);
   const selectedCompany = selected ? companies.find((company) => company.ticker === selected.ticker) : null;
   if (selected && selectedCompany) return <CompanyDetail key={`${selected.ticker}-${selected.section}`} idea={idea} company={selectedCompany} index={companies.findIndex((company) => company.ticker === selectedCompany.ticker)} initialSection={selected.section} answer={answers[selectedCompany.ticker]} onAnswer={(answer) => onAnswer(selectedCompany.ticker, answer)} onBack={() => setSelected(null)} onSavedChange={onSavedChange} />;
   const attempted = Object.values(answers).filter((answer) => !answer.skipped).length, matched = Object.values(answers).filter((answer) => answer.matched).length;
@@ -187,5 +231,5 @@ export function ComparisonExperience({ idea, answers, onAnswer, onCompanyUpdate,
     setSelected({ ticker, section });
     track({ event_name: "result_action_selected", idea_id: idea.id, ticker, properties: { action: section === "instinct" ? "intuition" : "details", surface } });
   };
-  return <main className="comparison-page" data-testid="comparison-page"><header className="comparison-header"><a href="/" className="wordmark" data-testid="comparison-wordmark">Aaspaas<span>.</span></a><div><a href="/discoveries" data-testid="comparison-journal-link">My Discoveries</a><span>Educational only · no trades</span></div></header><section className="comparison-intro"><div><span className="mono-label" data-testid="comparison-kicker">YOUR CLUE · {idea.observation_theme}</span><h1 data-testid="comparison-title">Three businesses.<br /><em>Two lenses.</em></h1><p data-testid="comparison-observation">“{idea.observation}”</p></div><div className="comparison-meta"><span data-testid="comparison-source-mode">{idea.discovery_mode === "ai" ? "Live AI company mapping" : "Curated fallback mapping"}</span><span data-testid="comparison-read-score">Optional reads matched: {matched}/{attempted}</span><span data-testid="comparison-remaining">{idea.daily_remaining} discoveries left today</span></div></section><PerformanceSection companies={companies} loading={enrichment.map((query) => query.isLoading)} onExplore={(ticker) => openPath(ticker, "standout", "performance")} onIntuition={(ticker) => openPath(ticker, "instinct", "performance")} onPeriodChange={(period) => track({ event_name: "performance_period_selected", idea_id: idea.id, properties: { period } })} /><section className="quality-transition" ref={qualitySectionRef} data-testid="quality-transition"><span className="mono-label">A DIFFERENT LENS</span><h2 data-testid="quality-transition-title">What the stock did is not<br /><em>what the business is.</em></h2><p data-testid="quality-transition-copy">Now set the price journey aside. Compare the moat, management, capital allocation, runway, and the real numbers underneath.</p></section><div className="comparison-toolbar" data-testid="comparison-toolbar"><p data-testid="comparison-help">Business quality can be sorted. The performance cards above always stay in AI relevance order.</p><label htmlFor="comparison-sort">Sort business cards by <select id="comparison-sort" value={sort} onChange={(event) => { setSort(event.target.value as SortKey); track({ event_name: "comparison_sorted", idea_id: idea.id, properties: { sort: event.target.value } }); }} data-testid="comparison-sort-select"><option value="quality">Overall quality</option><option value="moat">Moat</option><option value="pe">P/E · low first</option><option value="market_cap">Market cap</option></select></label></div><section className="comparison-grid" data-testid="comparison-grid">{sorted.map((company, rank) => <ComparisonCard key={company.id} company={company} rank={rank + 1} loading={company.enrichment_status === "pending"} onExplore={() => openPath(company.ticker, "standout", "business")} onIntuition={() => openPath(company.ticker, "instinct", "business")} />)}</section><div className="comparison-footer-actions"><Button onClick={onFinish} size="lg" data-testid="comparison-finish-button">Wrap up this discovery <ArrowRight size={17} /></Button><p data-testid="comparison-disclaimer">Scores are qualitative judgment. Yahoo Finance data can be delayed or incomplete. This is not a buy/sell recommendation.</p></div></main>;
+  return <main className="comparison-page" data-testid="comparison-page"><header className="comparison-header"><a href="/" className="wordmark" data-testid="comparison-wordmark">Aaspaas<span>.</span></a><div><a href="/discoveries" data-testid="comparison-journal-link">My Discoveries</a><span>Educational only · no trades</span></div></header><section className="comparison-intro"><div><span className="mono-label" data-testid="comparison-kicker">YOUR CLUE · {idea.observation_theme}</span><h1 data-testid="comparison-title">Three businesses.<br /><em>Two lenses.</em></h1><p data-testid="comparison-observation">“{idea.observation}”</p></div><div className="comparison-meta"><span data-testid="comparison-source-mode">{idea.discovery_mode === "ai" ? "Live AI company mapping" : "Curated fallback mapping"}</span><span data-testid="comparison-read-score">Optional reads matched: {matched}/{attempted}</span><span data-testid="comparison-remaining">{idea.daily_remaining} discoveries left today</span></div></section><PerformanceSection ideaId={idea.id} observation={idea.observation} companies={companies} loading={enrichment.map((query) => query.isLoading)} onExplore={(ticker) => openPath(ticker, "standout", "performance")} onIntuition={(ticker) => openPath(ticker, "instinct", "performance")} onPeriodChange={(period) => track({ event_name: "performance_period_selected", idea_id: idea.id, properties: { period } })} /><section className="quality-transition" ref={qualitySectionRef} data-testid="quality-transition"><span className="mono-label">A DIFFERENT LENS</span><h2 data-testid="quality-transition-title">What the stock did is not<br /><em>what the business is.</em></h2><p data-testid="quality-transition-copy">Now set the price journey aside. Compare the moat, management, capital allocation, runway, and the real numbers underneath.</p></section><div className="comparison-toolbar" data-testid="comparison-toolbar"><p data-testid="comparison-help">Tap a lens to rank the business cards by it. The performance cards above always stay in AI relevance order.</p><CategoryCards companies={companies} active={sort} onSelect={(key) => { setSort(key); track({ event_name: "comparison_sorted", idea_id: idea.id, properties: { sort: key, control: "category_card" } }); }} /></div><section className="comparison-grid" data-testid="comparison-grid">{sorted.map((company, rank) => <ComparisonCard key={company.id} company={company} rank={rank + 1} sort={sort} loading={company.enrichment_status === "pending"} onExplore={() => openPath(company.ticker, "standout", "business")} onIntuition={() => openPath(company.ticker, "instinct", "business")} />)}</section><div className="comparison-footer-actions"><Button onClick={onFinish} size="lg" data-testid="comparison-finish-button">Wrap up this discovery <ArrowRight size={17} /></Button><p data-testid="comparison-disclaimer">Scores are qualitative judgment. Yahoo Finance data can be delayed or incomplete. This is not a buy/sell recommendation.</p></div></main>;
 }

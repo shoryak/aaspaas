@@ -100,6 +100,7 @@ async def get_finance(ticker: str, exchange: str) -> FinanceData:
                 roe=_percent(row.get("returnOnEquity")) or _percent(financial.get("returnOnEquity")),
                 debt_to_equity=_number(row.get("debtToEquity")) or _number(financial.get("debtToEquity")),
                 revenue_growth=_percent(row.get("revenueGrowth")) or _percent(financial.get("revenueGrowth")),
+                operating_margin=_percent(financial.get("operatingMargins")),
                 available=bool(row or detail or financial),
                 status="live" if row or detail or financial else "unavailable",
                 fetched_at=now,

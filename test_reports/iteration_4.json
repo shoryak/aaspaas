@@ -1,0 +1,73 @@
+{
+  "iteration": 4,
+  "summary": "passed=8 failed=0 flaky=0 blocked=0 test_error=0, across 8 artifacts for 8 matrix criteria (1 new backend test file = 6 pytest cases, 7 new browser checks). No bugs found. Two browser checks (recap-shows-written-lenses-and-facts, results-tour-spotlights-peer-table) failed on first attempt due to test-script issues (uppercase CSS text-transform on facts labels; force:true clicking a stale position during a layout-animated tour pill) and passed cleanly after fixing the check scripts -- classified as test-authoring fixes, not app bugs, and reran to green.",
+  "passed": 8,
+  "failed": 0,
+  "bugs": [],
+  "action_items": [
+    {
+      "type": "note",
+      "severity": "low",
+      "detail": "Two pre-existing backend test files unrelated to this iteration's acceptance_matrix failed when the full suite was run: test_tscheck_rate_limit_wall.py::test_fourth_submission_hits_daily_wall (depends on the shared 3/day quota already being exhausted by an earlier browser run this session -- flaky-by-design against shared external state) and test_tscheck_share_link_preview.py::test_share_link_preview_has_og_tags_and_redirect (asserts an old '&view=recap&shared=1' redirect query string the share page no longer emits -- a stale assertion from a prior iteration's feature, not part of this briefing's matrix). Left untouched per instructions since neither is in the current acceptance_matrix; flagged here for visibility only."
+    }
+  ],
+  "retest_needed": false,
+  "checks": [
+    {
+      "criterion": "Peer comparison table replaces the old quality lenses section on the results page, directly after the price section",
+      "name": "peer-table-replaces-quality-lenses",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "On /?idea=2a3c3928...&shared=1 (tour flags pre-set), peer-section renders after performance-section (DOM order check), peer-prompt text matches exactly 'Is this company's edge real, or is the whole sector this good? Compare ROE, ROCE and margins within each group.'. 0 [data-testid^=category-card-] elements, 0 '[class*=pip]' elements, no '#N rank' or 'x / 5' text anywhere on the page. Re-ran successfully against the public ingress URL https://idea-to-ticker.preview.emergentagent.com too."
+    },
+    {
+      "criterion": "One combined table: each discovered company is a highlighted row with its validated peers grouped below; 10 sourced columns",
+      "name": "peer-table-columns-and-sourcing",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "peer-row-britannia/balramchin/uflex plus peer-row-nestleind/itc/renuka/huhtamaki all visible. All 10 peer-metric-* column headers present (market_cap, pe_ratio, roe, roce, operating_margin, net_income, operating_cash_flow, revenue_growth, debt_to_equity, price_change_1y); ROCE header tagged 'calculated'. Britannia's ROE cell renders '\u2014' (missing-value em dash, matches spec deviation that ROE is never estimated). At least one cell carries the loss-tone class for a negative figure. peer-source text equals 'Yahoo Finance \u00b7 may be delayed or incomplete \u00b7 ROCE calculated from annual figures'."
+    },
+    {
+      "criterion": "Mobile table interactions",
+      "name": "peer-table-mobile-interactions",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "At 390px viewport, document.scrollWidth<=391 (no page overflow); peer-swipe-hint visible on first view (localStorage hint key cleared); inner peer-table-scroll has overflow-x auto (sideways scroll isolated from the page). Tapping peer-metric-roce opens peer-explainer with a working peer-explainer-close button. Tapping peer-reason-toggle-nestleind reveals peer-reason-nestleind containing 'why it's a rival'. Tapping peer-open-britannia navigates to company-detail-page showing 'Britannia' in detail-company-name."
+    },
+    {
+      "criterion": "Financials tab in company details",
+      "name": "financials-tab-shows-cashflow-comparison",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "detail-menu-financials opens detail-section-financials with financials-row-revenue/net_income/operating_cash_flow, each showing a non-empty latest value and a change-over-period badge. Clicking financials-toggle-revenue opens financials-years-revenue containing FY-labelled rows. financials-lesson (teaching sentence) is visible. financials-source text contains 'Yahoo Finance \u00b7 annual reported figures \u00b7 may be delayed or incomplete'."
+    },
+    {
+      "criterion": "Business lenses replace the full scorecard; no scores anywhere",
+      "name": "business-lenses-no-scores-gut-check",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "detail-menu-scorecard shows detail-lens-moat/capital_allocation/management/growth_runway written notes; lenses section text has no 'x / 5' numbers and 0 '[class*=pip]' elements. detail-menu-instinct then the InteractionPanel lets an option be chosen, producing instinct-result-title text matching /matched|differed/i."
+    },
+    {
+      "criterion": "Recap shows written lenses + compact facts, share and try-another remain",
+      "name": "recap-shows-written-lenses-and-facts",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Clicking comparison-finish-button opens recap-page. recap-facts-britannia contains 'mkt cap', 'p/e', 'roe', 'd/e' (case-insensitive, CSS uppercases the labels). recap-lenses-britannia contains 'AI-WRITTEN LENSES' and 'NOT SCORES'. share-idea-button, try-another-idea-button and recap-disclaimer all visible."
+    },
+    {
+      "criterion": "Peers API and backfill",
+      "name": "test_tscheck_peer_comparison.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "GET /ideas/2a3c3928.../peers -> 200 {status:'ready', groups:[BRITANNIA->{NESTLEIND,ITC}, BALRAMCHIN->{RENUKA}, UFLEX->{HUHTAMAKI}]}. GET /ideas/a594e733.../peers -> 200 status ready with non-empty groups (backfilled older idea). GET /ideas/tscheck-peers-does-not-exist/peers -> 404. GET /companies/NSE/BRITANNIA/fundamentals -> 200 available=true, roce present, 3 lines (revenue/net_income/operating_cash_flow). GET /companies/NYSE/AAPL/fundamentals -> 422. GET /ideas/2a3c3928...?shared=1 shows companies[].peers populated and scorecard items with no 'score' key (read-only check, no new POST /ideas issued per the 3/day instruction). 6/6 tests passed."
+    },
+    {
+      "criterion": "Results tour updated",
+      "name": "results-tour-spotlights-peer-table",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "With aaspaas-results-tour-done cleared, the 3rd explain-card's tour-step-title reads exactly 'Is the edge real, or the whole sector?' with a visible tour-spotlight. Advancing into task mode and skipping earlier tasks reaches the task labelled 'Swipe the peer table, or tap a metric header'; tapping peer-metric-roce marks it done and the pill advances to 'TRY IT \u00b7 5 of 5'."
+    }
+  ]
+}

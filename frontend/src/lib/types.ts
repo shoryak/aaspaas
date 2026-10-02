@@ -6,9 +6,10 @@ export type QuestionFormat = "moat" | "business_model" | "metric_guess";
 export interface ScoreAxis {
   key: "moat" | "capital_allocation" | "management" | "growth_runway";
   label: string;
-  score: number;
   rationale: string;
 }
+
+export interface Peer { company_name: string; ticker: string; exchange: "NSE" | "BSE"; reason: string }
 
 export interface FinanceData {
   market_cap: number | null;
@@ -16,6 +17,7 @@ export interface FinanceData {
   roe: number | null;
   debt_to_equity: number | null;
   revenue_growth: number | null;
+  operating_margin: number | null;
   source: string;
   available: boolean;
   status: DataStatus;
@@ -71,6 +73,7 @@ export interface CompanyInsight {
   revenue_options: string[];
   revenue_answer: string;
   scorecard: ScoreAxis[];
+  peers: Peer[] | null;
   finance: FinanceData;
   historical: HistoricalData;
   enrichment_status: "pending" | "ready" | "partial";
@@ -169,3 +172,29 @@ export interface MarketContextResponse {
 export interface TranscriptionResponse { text: string; language: string | null; remaining: number }
 export interface VoiceAllowanceResponse { remaining: number; daily_limit: number; max_seconds: number; live: boolean }
 export interface VoicePassResponse { token: string; max_seconds: number }
+
+export type FinancialLineKey = "revenue" | "net_income" | "operating_cash_flow";
+export interface FinancialPoint { label: string; as_of: string; value: number }
+export interface FinancialLine { key: FinancialLineKey; label: string; points: FinancialPoint[]; ttm: FinancialPoint | null }
+export interface CompanyFundamentals {
+  ticker: string;
+  exchange: "NSE" | "BSE";
+  available: boolean;
+  status: DataStatus;
+  market_cap: number | null;
+  pe_ratio: number | null;
+  roe: number | null;
+  roce: number | null;
+  operating_margin: number | null;
+  net_income: number | null;
+  operating_cash_flow: number | null;
+  revenue_growth: number | null;
+  debt_to_equity: number | null;
+  price_change_1y: number | null;
+  fiscal_year: string | null;
+  lines: FinancialLine[];
+  source: string;
+  note: string;
+}
+export interface PeerGroup { ticker: string; peers: Peer[] }
+export interface PeerGroupsResponse { idea_id: string; status: "ready" | "unavailable"; groups: PeerGroup[] }

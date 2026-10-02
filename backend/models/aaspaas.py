@@ -7,8 +7,14 @@ from pydantic import BaseModel, EmailStr, Field
 class ScoreAxis(BaseModel):
     key: Literal["moat", "capital_allocation", "management", "growth_runway"]
     label: str
-    score: int = Field(ge=1, le=5)
-    rationale: str
+    rationale: str  # written lens only; Aaspaas no longer shows AI 1-5 scores
+
+
+class Peer(BaseModel):
+    company_name: str
+    ticker: str
+    exchange: Literal["NSE", "BSE"]
+    reason: str  # AI context: why this is a direct rival
 
 
 class FinanceData(BaseModel):
@@ -17,6 +23,7 @@ class FinanceData(BaseModel):
     roe: float | None = None
     debt_to_equity: float | None = None
     revenue_growth: float | None = None
+    operating_margin: float | None = None
     source: str = "Yahoo Finance"
     available: bool = False
     status: Literal["live", "cached", "stale", "unavailable"] = "unavailable"
@@ -99,6 +106,7 @@ class CompanyInsight(BaseModel):
     revenue_options: list[str] = Field(default_factory=list)
     revenue_answer: str = ""
     scorecard: list[ScoreAxis] = Field(min_length=4, max_length=4)
+    peers: list[Peer] | None = None  # None = not looked up yet (older ideas are backfilled on reopen)
     finance: FinanceData = Field(default_factory=FinanceData)
     historical: HistoricalData = Field(default_factory=HistoricalData)
     enrichment_status: Literal["pending", "ready", "partial"] = "pending"
@@ -128,6 +136,7 @@ class DiscoveryDraft(BaseModel):
     revenue_options: list[str] = Field(default_factory=lambda: ["Selling products or services", "Stock-market activity", "A fixed grant"])
     revenue_answer: str = "Selling products or services"
     scorecard: list[ScoreAxis] = Field(min_length=4, max_length=4)
+    peers: list[Peer] = Field(default_factory=list)
 
 
 class DiscoveryResponse(BaseModel):

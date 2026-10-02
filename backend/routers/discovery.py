@@ -1,19 +1,15 @@
-import json
 import logging
 import os
-import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Request, Response
-from google import genai
-from google.genai import types
-from google.oauth2 import service_account
-
 from lib.db import db
 from lib.ai_cost import ai_cost_usd
 from lib.dates import today_iso
+from lib.peers import PEER_INSTRUCTION, curated_peers, validate_peers
+from lib.vertex import generate_json, vertex_configured
 from lib.session import daily_ip_fingerprint, ensure_session, utc_now
 from models.aaspaas import (
     CompanyInsight,
@@ -31,10 +27,10 @@ logger = logging.getLogger(__name__)
 
 def _fallback_axes() -> list[dict]:
     return [
-        {"key": "moat", "label": "Moat & pricing power", "score": 3, "rationale": "Customer switching and pricing still need checking."},
-        {"key": "capital_allocation", "label": "Capital allocation discipline", "score": 3, "rationale": "Review reinvestment, dilution, and returns on new capital."},
-        {"key": "management", "label": "Management quality", "score": 3, "rationale": "Read disclosures and execution history before forming a view."},
-        {"key": "growth_runway", "label": "Growth runway", "score": 3, "rationale": "Category growth may still be offset by competition."},
+        {"key": "moat", "label": "Moat & pricing power", "rationale": "Customer switching and pricing still need checking."},
+        {"key": "capital_allocation", "label": "Capital allocation discipline", "rationale": "Review reinvestment, dilution, and returns on new capital."},
+        {"key": "management", "label": "Management quality", "rationale": "Read disclosures and execution history before forming a view."},
+        {"key": "growth_runway", "label": "Growth runway", "rationale": "Category growth may still be offset by competition."},
     ]
 
 
@@ -84,66 +80,26 @@ def _fallback_discovery(observation: str) -> DiscoveryResponse:
             "revenue_options": ["Selling products or services tied to demand", "Earning only from stock-market activity", "Receiving a fixed government grant"],
             "revenue_answer": "Selling products or services tied to demand",
             "scorecard": _fallback_axes(),
+            "peers": [peer.model_dump() for peer in curated_peers(ticker)],
         })
     return DiscoveryResponse.model_validate({"observation_theme": theme, "companies": companies})
 
 
-def _json_from_text(text: str) -> dict:
-    cleaned = re.sub(r"```(?:json)?", "", text, flags=re.IGNORECASE).replace("```", "").strip()
-    start, end = cleaned.find("{"), cleaned.rfind("}")
-    if start < 0 or end <= start:
-        raise ValueError("LLM did not return JSON")
-    return json.loads(cleaned[start : end + 1])
-
-
 async def _discover(observation: str, idea_id: str) -> tuple[DiscoveryResponse, bool, dict | None]:
-    credentials_json = os.environ.get("GCP_SERVICE_ACCOUNT_JSON")
-    project = os.environ.get("GCP_PROJECT_ID")
-    if not credentials_json or not project:
+    if not vertex_configured():
         return _fallback_discovery(observation), True, None
-    system = """You are Aaspaas, an educational Indian equity research guide. Map an everyday observation to genuinely exposed NSE/BSE companies. Never give advice, targets, recommendations, or financial numbers. Prefer a non-obvious supplier or enabling business when genuine. Distinguish facts from interpretation. Return only valid JSON."""
+    system = """You are Aaspaas, an educational Indian equity research guide. Map an everyday observation to genuinely exposed NSE/BSE companies. Never give advice, targets, recommendations, ratings, scores, or financial numbers. Prefer a non-obvious supplier or enabling business when genuine. Distinguish facts from interpretation. Return only valid JSON."""
     prompt = f"""Observation: {observation}
 Return one JSON object with observation_theme and exactly 3 companies, or an empty companies list when no honest listed-company link exists. Keep every prose field to one short sentence of at most 22 words. Every company needs:
-company_name; ticker without suffix; exchange NSE/BSE; sector; observation_phrase copied from the user's words; connection_strength direct/enabling/adjacent; connection; behavior_change; revenue_driver; profit_sensitivity; market_expectation; business_model (2-3 plain sentences); risk; verify_tip; what_must_be_true; what_breaks_chain; exactly 3 research_checks; gut_check_question; gut_check_lean yes/no; revenue_question; exactly 3 conversational revenue_options; revenue_answer exactly matching one option; and scorecard with exactly four axes.
-Scorecard keys and labels: moat / Moat & pricing power; capital_allocation / Capital allocation discipline; management / Management quality; growth_runway / Growth runway. Each needs score 1-5 and a one-line rationale.
+company_name; ticker without suffix; exchange NSE/BSE; sector; observation_phrase copied from the user's words; connection_strength direct/enabling/adjacent; connection; behavior_change; revenue_driver; profit_sensitivity; market_expectation; business_model (2-3 plain sentences); risk; verify_tip; what_must_be_true; what_breaks_chain; exactly 3 research_checks; gut_check_question (yes/no about moat or pricing power); gut_check_lean yes/no (the answer your written moat lens leans toward); revenue_question; exactly 3 conversational revenue_options; revenue_answer exactly matching one option; scorecard with exactly four written lenses; and {PEER_INSTRUCTION}
+Scorecard keys and labels: moat / Moat & pricing power; capital_allocation / Capital allocation discipline; management / Management quality; growth_runway / Growth runway. Each lens has only a one-line written rationale — no score or rating.
 Do not invent current or historical numbers. Keep every sentence compact enough for a mobile story."""
-    chunks: list[str] = []
-    usage = None
-    client = None
     try:
-        credentials = service_account.Credentials.from_service_account_info(
-            json.loads(credentials_json), scopes=["https://www.googleapis.com/auth/cloud-platform"]
-        )
-        client = genai.Client(
-            vertexai=True, project=project, location=os.environ.get("VERTEX_LOCATION", "us-central1"),
-            credentials=credentials, http_options=types.HttpOptions(api_version="v1"),
-        )
-        stream = await client.aio.models.generate_content_stream(
-            model=os.environ.get("VERTEX_MODEL", "gemini-2.5-flash"), contents=prompt,
-            config=types.GenerateContentConfig(
-                system_instruction=system, temperature=0.2, max_output_tokens=12000,
-                thinking_config=types.ThinkingConfig(thinking_budget=0),
-                response_mime_type="application/json", response_schema=DiscoveryResponse,
-            ),
-        )
-        async for chunk in stream:
-            if chunk.text:
-                chunks.append(chunk.text)
-            if chunk.usage_metadata:
-                usage = chunk.usage_metadata
-        token_usage = None
-        if usage is not None:
-            token_usage = {
-                "input_tokens": usage.prompt_token_count or 0,
-                "output_tokens": (usage.candidates_token_count or 0) + (usage.thoughts_token_count or 0),
-            }
-        return DiscoveryResponse.model_validate(_json_from_text("".join(chunks))), False, token_usage
+        data, token_usage = await generate_json(system, prompt, DiscoveryResponse)
+        return DiscoveryResponse.model_validate(data), False, token_usage
     except Exception as exc:
         logger.warning("Vertex discovery fallback for %s: %s", idea_id, exc)
         return _fallback_discovery(observation), True, None
-    finally:
-        if client is not None:
-            await client.aio.aclose()
 
 
 async def _consume_daily_allowance(request: Request, session_id: str) -> int:
@@ -179,7 +135,12 @@ async def create_idea(payload: IdeaCreate, request: Request, response: Response)
     started = time.perf_counter()
     idea_id = str(uuid.uuid4())
     discovered, used_fallback, token_usage = await _discover(payload.observation, idea_id)
-    companies = [CompanyInsight(id=str(uuid.uuid4()), **draft.model_dump()) for draft in discovered.companies[:4]]
+    drafts = discovered.companies[:4]
+    validated = await validate_peers([draft.model_dump() for draft in drafts], [draft.peers for draft in drafts])
+    companies = [
+        CompanyInsight(id=str(uuid.uuid4()), **{**draft.model_dump(), "peers": validated[index] if validated is not None else None})
+        for index, draft in enumerate(drafts)
+    ]
     submitted_at = utc_now()
     generation_ms = round((time.perf_counter() - started) * 1000)
     discovery_mode = "curated_fallback" if used_fallback else "ai"

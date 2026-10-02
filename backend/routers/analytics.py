@@ -26,6 +26,7 @@ HEALTH_EVENTS = [
     "performance_section_viewed", "performance_to_quality_continued", "result_action_selected", "detail_section_opened",
     "chart_event_opened", "benchmark_toggled", "journal_opened", "screener_outbound_clicked", "tour_completed",
     "tour_skipped", "rate_limit_hit", "recap_completed", "global_cap_hit", "friend_landing_viewed", "friend_landing_submitted",
+    "peer_table_viewed", "peer_metric_explained", "peer_reason_opened",
 ]
 LOCKOUT_ATTEMPTS = 5
 LOCKOUT_WINDOW = timedelta(minutes=15)
@@ -118,7 +119,7 @@ async def _build_summary(days: int) -> StudioSummary:
     ideas = await db.ideas.find(REAL, {"_id": 0, "id": 1, "session_id": 1, "input_mode": 1, "submitted_at": 1, "discovery_mode": 1, "ai_cost_usd": 1, "generation_ms": 1, "tickers": 1, "observation": 1, "recap_completed_at": 1}).to_list(None)
     shares = await db.share_events.find(REAL, {"_id": 0, "idea_id": 1, "session_id": 1, "clicked_at": 1, "channel": 1, "ref": 1, "surface": 1}).to_list(None)
     opens = await db.share_opens.find(window("opened_at"), {"_id": 0}).to_list(None)
-    events = await db.engagement_events.find({"event_name": {"$in": HEALTH_EVENTS}, **window("created_at")}, {"_id": 0, "event_name": 1, "idea_id": 1, "session_id": 1, "properties": 1}).to_list(None)
+    events = await db.engagement_events.find({"event_name": {"$in": HEALTH_EVENTS}, **window("created_at")}, {"_id": 0, "event_name": 1, "idea_id": 1, "session_id": 1, "stage": 1, "properties": 1}).to_list(None)
     interests = await db.product_interests.find(window("created_at"), {"_id": 0, "kind": 1, "session_id": 1}).to_list(None)
     emails = await db.email_interests.find({"status": "subscribed"}, {"_id": 0, "session_id": 1, "consent_at": 1}).to_list(None)
     voice = await db.transcriptions.find(window("created_at"), {"_id": 0, "session_id": 1, "cost_usd": 1, "language": 1, "seconds": 1, "engine": 1}).to_list(None)
@@ -284,9 +285,13 @@ async def _build_summary(days: int) -> StudioSummary:
     returning = sum(1 for session_id in active_ids if (session_lookup.get(session_id, {}).get("pageviews") or 0) > 1)
     recaps = sum(1 for idea in ideas_in if idea.get("recap_completed_at"))
     chart_shares = sum(1 for share in shares_in if share.get("surface") == "chart")
+    peer_views = len(by_event["peer_table_viewed"]) + len(by_event["performance_to_quality_continued"])  # legacy quality-section scroll counts too
+    financials_opened = sum(1 for event in by_event["detail_section_opened"] if event.get("stage") == "financials")
     product_health = [
         _metric("recap_rate", "Recap completion", _ratio(recaps, len(ideas_in)), _pct(_ratio(recaps, len(ideas_in)))),
-        _metric("price_to_quality", "Price → quality scroll", _ratio(len(by_event["performance_to_quality_continued"]), len(by_event["performance_section_viewed"])), _pct(_ratio(len(by_event["performance_to_quality_continued"]), len(by_event["performance_section_viewed"])))),
+        _metric("price_to_peers", "Price → peer table", _ratio(peer_views, len(by_event["performance_section_viewed"])), _pct(_ratio(peer_views, len(by_event["performance_section_viewed"])))),
+        _metric("peer_explainers", "Peer table interactions", float(len(by_event["peer_metric_explained"]) + len(by_event["peer_reason_opened"])), f"{len(by_event['peer_metric_explained']) + len(by_event['peer_reason_opened']):,}", f"{len(by_event['peer_metric_explained']):,} metric explainers · {len(by_event['peer_reason_opened']):,} rival reasons opened."),
+        _metric("financials_opened", "Financials tab opened", float(financials_opened), f"{financials_opened:,}", f"{_pct(_ratio(financials_opened, len(by_event['detail_section_opened'])))} of detail-section opens."),
         _metric("details_choice", "Details vs intuition", _ratio(details, len(actions)), _pct(_ratio(details, len(actions))), "Share of result actions choosing 'Explore details'."),
         _metric("read_match", "Intuition match", _ratio(matched, len(checks)), _pct(_ratio(matched, len(checks))), f"{len(checks):,} gut checks answered."),
         _metric("returning", "Returning users", _ratio(returning, active), _pct(_ratio(returning, active))),

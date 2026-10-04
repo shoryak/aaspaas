@@ -144,9 +144,18 @@ class DiscoveryResponse(BaseModel):
     companies: list[DiscoveryDraft] = Field(max_length=4)
 
 
+class Place(BaseModel):
+    """Where the reader noticed it. Stored as area + city; shown publicly only at city level."""
+    area: str | None = Field(default=None, max_length=60)
+    city: str = Field(min_length=2, max_length=60)
+    state: str | None = Field(default=None, max_length=60)
+    source: Literal["gps", "picked", "typed"] = "typed"
+
+
 class IdeaCreate(BaseModel):
     observation: str = Field(min_length=8, max_length=1200)
     input_mode: Literal["typed", "voice"] = "typed"
+    place: Place | None = None
 
 
 class TranscriptionResponse(BaseModel):
@@ -179,6 +188,7 @@ class IdeaResponse(BaseModel):
     saved_tickers: list[str] = Field(default_factory=list)
     investor_type: str | None = None
     recap_completed_at: datetime | None = None
+    place: Place | None = None
 
 
 class EnrichmentResponse(BaseModel):
@@ -260,6 +270,7 @@ class JournalItem(BaseModel):
     investor_type: str | None = None
     saved_tickers: list[str] = Field(default_factory=list)
     discovery_mode: Literal["ai", "curated_fallback"]
+    place: Place | None = None
 
 
 class AdminLogin(BaseModel):

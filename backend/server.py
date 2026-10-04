@@ -23,6 +23,7 @@ from routers.learn import router as learn_router
 from routers.partner import router as partner_router
 from routers.portfolio import router as portfolio_router
 from routers.trending import router as trending_router
+from routers.places import router as places_router
 from routers.market import router as market_router
 from routers.voice import router as voice_router
 
@@ -49,7 +50,7 @@ api_router.include_router(analytics_router)
 api_router.include_router(market_router)
 api_router.include_router(voice_router)
 api_router.include_router(fundamentals_router)
-for extra_router in (auth_router, learn_router, partner_router, portfolio_router, trending_router):
+for extra_router in (auth_router, learn_router, partner_router, portfolio_router, trending_router, places_router):
     api_router.include_router(extra_router)
 
 app.add_middleware(RateLimitMiddleware)

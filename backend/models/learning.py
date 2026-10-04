@@ -50,6 +50,7 @@ class TrendingClue(BaseModel):
     idea_id: str | None = None
     tickers: list[str] = Field(default_factory=list)
     hidden: bool = False
+    city: str | None = None
 
 
 class TrendingDay(BaseModel):
@@ -62,6 +63,7 @@ class TrendingDay(BaseModel):
 class TrendingPick(BaseModel):
     index: int
     observation: str
+    city: str = ""  # Indian city named in the item, else empty
 
 
 class TrendingSkip(BaseModel):
@@ -243,3 +245,18 @@ class PartnerConversation(BaseModel):
     turns: list[PartnerTurn] = Field(default_factory=list)
     remaining_today: int
     max_turns: int
+
+
+class CityThemes(BaseModel):
+    city: str
+    state: str | None = None
+    people: int
+    themes: list[str] = Field(default_factory=list)  # AI theme labels, never anyone's words
+    tickers: list[str] = Field(default_factory=list)
+
+
+class CitiesResponse(BaseModel):
+    min_people: int
+    window_days: int
+    cities: list[CityThemes] = Field(default_factory=list)
+    gathering: int = 0  # cities with some activity but fewer than min_people

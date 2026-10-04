@@ -91,6 +91,7 @@ export interface IdeaResponse {
   saved_tickers: string[];
   investor_type: string | null;
   recap_completed_at: string | null;
+  place?: Place | null;
 }
 
 export interface EnrichmentResponse {
@@ -118,6 +119,7 @@ export interface JournalItem {
   investor_type: string | null;
   saved_tickers: string[];
   discovery_mode: "ai" | "curated_fallback";
+  place?: Place | null;
 }
 
 export interface StudioMetric { key: string; label: string; display: string; value: number | null; hint: string }
@@ -196,6 +198,9 @@ export interface CompanyFundamentals {
   source: string;
   note: string;
 }
+export interface Place { area: string | null; city: string; state: string | null; source: "gps" | "picked" | "typed" }
+export interface CityThemes { city: string; state: string | null; people: number; themes: string[]; tickers: string[] }
+export interface CitiesResponse { min_people: number; window_days: number; cities: CityThemes[]; gathering: number }
 export interface PeerGroup { ticker: string; peers: Peer[] }
 export interface PeerGroupsResponse { idea_id: string; status: "ready" | "unavailable"; groups: PeerGroup[] }
 
@@ -207,7 +212,7 @@ export interface Lesson {
 }
 export interface LearnResponse { modules: LessonModule[]; lessons: Lesson[]; watched: string[] }
 export interface SiteVideos { landing: string; friend: string }
-export interface TrendingClue { id: string; date: string; observation: string; source: string; source_url: string | null; idea_id: string | null; tickers: string[]; hidden: boolean }
+export interface TrendingClue { id: string; date: string; observation: string; source: string; source_url: string | null; idea_id: string | null; tickers: string[]; hidden: boolean; city: string | null }
 export interface TrendingDay { date: string; status: "fresh" | "previous" | "empty"; clues: TrendingClue[]; archive_dates: string[] }
 export interface TrendingLogItem { title: string; source: string; picked: boolean; reason: string }
 export interface TrendingLogResponse { date: string; items: TrendingLogItem[]; clues: TrendingClue[] }

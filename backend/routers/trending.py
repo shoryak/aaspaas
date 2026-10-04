@@ -15,6 +15,7 @@ from fastapi.responses import HTMLResponse, Response
 from lib.ai_cost import ai_cost_usd
 from lib.db import db
 from lib.insta_card import render_portrait
+from lib.places import normalize_city
 from lib.session import utc_now
 from lib.vertex import generate_json
 from models.learning import TrendingClue, TrendingDay, TrendingLogItem, TrendingLogResponse, TrendingSelection
@@ -66,7 +67,7 @@ async def generate_day(day: str) -> None:
             raise RuntimeError("no feed items")
         listing = "\n".join(f"{index}. [{item['source']}] {item['title']}" for index, item in enumerate(items))
         prompt = f"""Items:\n{listing}\nPick up to {MAX_CLUES} items an ordinary Indian person could notice in daily life (products, launches, habits, shop prices, festival or weather effects) that plausibly touch listed NSE/BSE businesses. Rewrite each as a first-person everyday observation of at most 22 words (e.g. 'Every chemist near me now stocks three brands of sunscreen').
-ALWAYS skip: politics, crime, deaths, disasters, sports results, celebrity gossip, and anything about stock prices, tips, top gainers, IPOs or results-day moves. Return picks [{{index, observation}}] and skipped [{{index, reason}}] (reason under 8 words) covering every other item."""
+ALWAYS skip: politics, crime, deaths, disasters, sports results, celebrity gossip, and anything about stock prices, tips, top gainers, IPOs or results-day moves. Return picks [{{index, observation, city}}] (city = the Indian city the item names, else empty) and skipped [{{index, reason}}] (reason under 8 words) covering every other item."""
         data, usage = await generate_json(SYSTEM, prompt, TrendingSelection, max_output_tokens=3000)
         cost += ai_cost_usd(usage)
         selection = TrendingSelection.model_validate(data)
@@ -81,7 +82,7 @@ ALWAYS skip: politics, crime, deaths, disasters, sports results, celebrity gossi
                 continue
             cost += idea.get("ai_cost_usd", 0)
             item = items[pick.index]
-            clues.append(TrendingClue(id=str(uuid.uuid4()), date=day, observation=pick.observation, source=item["source"], source_url=item["url"], idea_id=idea["id"], tickers=idea["tickers"]).model_dump())
+            clues.append(TrendingClue(id=str(uuid.uuid4()), date=day, observation=pick.observation, source=item["source"], source_url=item["url"], idea_id=idea["id"], tickers=idea["tickers"], city=normalize_city(pick.city) or None).model_dump())
         status = "ready" if clues else "failed"
     except Exception as exc:
         logger.warning("Trending generation failed for %s: %s", day, exc)

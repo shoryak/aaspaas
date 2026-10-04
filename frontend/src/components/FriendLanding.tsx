@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { HeaderNav } from "@/components/HeaderNav";
+import { PlacePicker } from "@/components/PlacePicker";
 import { VideoOverlay } from "@/components/Video";
 import { videosQuery } from "@/lib/learn";
 import { ArrowRight } from "lucide-react";
@@ -37,7 +38,7 @@ export function FriendLanding({ idea, observation, onObservation, onSubmit, onOp
         <p className="lede" data-testid="friend-lede">{`Your friend turned one everyday observation into ${idea.companies.length || "no"} listed ${idea.companies.length === 1 ? "company" : "companies"}. Yours could be the queue at your chemist, the app everyone at work installed, or the brand suddenly in every kitchen.`}</p>
       </motion.div>
       <motion.section className="observation-panel friend-panel" data-testid="friend-observation-panel" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, delay: .12, ease: EASE }}>
-        <ObservationForm value={observation} onChange={onObservation} submitLabel="Find my companies" placeholder="Lately I keep noticing…" onSubmit={(value, mode) => { track({ event_name: "friend_landing_submitted", idea_id: idea.id, properties: { input_mode: mode } }); onSubmit(value, mode); }} />
+        <PlacePicker /><ObservationForm value={observation} onChange={onObservation} submitLabel="Find my companies" placeholder="Lately I keep noticing…" onSubmit={(value, mode) => { track({ event_name: "friend_landing_submitted", idea_id: idea.id, properties: { input_mode: mode } }); onSubmit(value, mode); }} />
       </motion.section>
     </section>
 

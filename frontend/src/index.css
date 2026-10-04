@@ -1443,3 +1443,31 @@ html.tour-tasks-active .snap-next { display: none; }
   .comparison-header .header-signin, .comparison-header .header-account, .comparison-header > div > * { order: 1; }
   .comparison-header .results-tour-button span { display: none; }
 }
+
+/* ---------- Location ---------- */
+.place-picker { margin-bottom: 14px; }
+.place-current, .place-empty, .place-edit { align-items: center; background: color-mix(in srgb, var(--primary) 7%, var(--card)); border: 1px dashed color-mix(in srgb, var(--primary) 50%, var(--border)); display: flex; flex-wrap: wrap; font-size: 13px; gap: 8px; padding: 9px 11px; }
+.place-current svg, .place-empty > svg { color: var(--primary); flex: none; }
+.place-empty > span, .place-current > span { flex: 1 1 auto; }
+.place-empty small { color: var(--muted-foreground); font: 9px ui-monospace, monospace; margin-left: 4px; text-transform: uppercase; }
+.place-empty button, .place-current button, .place-edit button { align-items: center; background: var(--card); border: 1px solid var(--border); color: var(--foreground); cursor: pointer; display: inline-flex; font-size: 12px; gap: 5px; padding: 6px 9px; transition: border-color .2s ease; }
+.place-empty button:hover, .place-current button:hover, .place-edit button:hover { border-color: var(--primary); }
+.place-edit input { background: var(--background); border: 1px solid var(--input); color: var(--foreground); flex: 1 1 200px; font-size: 14px; min-width: 0; padding: 7px 9px; }
+.place-edit .place-save { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.place-privacy { color: var(--muted-foreground); font-size: 10.5px; margin: 5px 0 0; }
+.place-tag { align-items: center; border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 999px; color: color-mix(in srgb, var(--primary) 85%, var(--foreground)); display: inline-flex; font: 10px ui-monospace, monospace; gap: 4px; letter-spacing: .04em; padding: 3px 9px; width: fit-content; }
+.clue-city { margin-bottom: -2px; }
+.around-india { border-top: 1px solid var(--border); margin-top: 30px; padding-top: 24px; }
+.around-india > .mono-label { color: var(--primary); }
+.around-india h2 { font-size: clamp(30px, 4.6vw, 48px); line-height: 1; margin: 10px 0 16px; }
+.around-india h2 em { color: var(--primary); }
+.city-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); }
+.city-card { background: var(--card); border: 1px solid var(--border); border-top: 3px solid var(--primary); padding: 14px; }
+.city-card-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 6px; }
+.city-card-head svg { color: var(--primary); }
+.city-card-head strong { font-family: Georgia, serif; font-size: 22px; font-weight: 400; }
+.city-card-head small { color: var(--muted-foreground); font-size: 11px; }
+.city-card-head span { color: var(--muted-foreground); font: 9.5px ui-monospace, monospace; margin-left: auto; text-transform: uppercase; }
+.city-card ul { font-size: 13.5px; line-height: 1.5; margin: 10px 0; padding-left: 18px; }
+.around-india-note { color: var(--muted-foreground); font-size: 12px; margin-top: 12px; }
+.around-india-note a { color: var(--foreground); }

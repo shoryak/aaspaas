@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from lib.db import db
 from lib.ai_cost import ai_cost_usd
 from lib.dates import today_iso
+from lib.places import normalize_place
 from lib.peers import PEER_INSTRUCTION, curated_peers, validate_peers
 from lib.vertex import generate_json, vertex_configured
 from lib.session import daily_ip_fingerprint, ensure_session, utc_now
@@ -157,7 +158,8 @@ async def build_idea(observation: str, session_id: str, *, input_mode: str = "ty
 async def create_idea(payload: IdeaCreate, request: Request, response: Response):
     session_id = ensure_session(request, response)
     daily_remaining = await _consume_daily_allowance(request, session_id)
-    doc = await build_idea(payload.observation, session_id, input_mode=payload.input_mode, daily_remaining=daily_remaining)
+    place = normalize_place(payload.place) if payload.place else None
+    doc = await build_idea(payload.observation, session_id, input_mode=payload.input_mode, daily_remaining=daily_remaining, extra={"place": place.model_dump()} if place else None)
     idea_id, submitted_at, generation_ms, discovery_mode = doc["id"], doc["submitted_at"], doc["generation_ms"], doc["discovery_mode"]
     discovered_theme = doc["observation_theme"]
     await db.sessions.update_one(

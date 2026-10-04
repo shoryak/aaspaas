@@ -52,7 +52,7 @@ async def list_discoveries(request: Request, response: Response):
         id=row["id"], observation=row["observation"], submitted_at=row["submitted_at"],
         tickers=row.get("tickers", []), company_names=[item.get("company_name", item.get("ticker", "")) for item in row.get("companies", [])],
         investor_type=row.get("investor_type"), saved_tickers=row.get("saved_tickers", []),
-        discovery_mode=row.get("discovery_mode", "curated_fallback"),
+        discovery_mode=row.get("discovery_mode", "curated_fallback"), place=row.get("place"),
     ) for row in rows]
 
 

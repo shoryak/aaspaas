@@ -128,32 +128,38 @@ async def _consume_daily_allowance(request: Request, session_id: str) -> int:
     return max(DAILY_LIMIT - session_count - 1, 0)
 
 
-@router.post("/ideas", response_model=IdeaResponse)
-async def create_idea(payload: IdeaCreate, request: Request, response: Response):
-    session_id = ensure_session(request, response)
-    daily_remaining = await _consume_daily_allowance(request, session_id)
+async def build_idea(observation: str, session_id: str, *, input_mode: str = "typed", daily_remaining: int = 0, extra: dict | None = None) -> dict:
+    """Run discovery + peer validation and store the idea. Shared by visitor submissions and daily trending clues."""
     started = time.perf_counter()
     idea_id = str(uuid.uuid4())
-    discovered, used_fallback, token_usage = await _discover(payload.observation, idea_id)
+    discovered, used_fallback, token_usage = await _discover(observation, idea_id)
     drafts = discovered.companies[:4]
     validated = await validate_peers([draft.model_dump() for draft in drafts], [draft.peers for draft in drafts])
     companies = [
         CompanyInsight(id=str(uuid.uuid4()), **{**draft.model_dump(), "peers": validated[index] if validated is not None else None})
         for index, draft in enumerate(drafts)
     ]
-    submitted_at = utc_now()
-    generation_ms = round((time.perf_counter() - started) * 1000)
-    discovery_mode = "curated_fallback" if used_fallback else "ai"
     doc = {
-        "id": idea_id, "observation": payload.observation, "input_mode": payload.input_mode,
+        "id": idea_id, "observation": observation, "input_mode": input_mode,
         "companies": [company.model_dump() for company in companies],
         "tickers": [company.ticker for company in companies], "session_id": session_id,
-        "submitted_at": submitted_at, "discovery_mode": discovery_mode,
-        "observation_theme": discovered.observation_theme, "generation_ms": generation_ms,
+        "submitted_at": utc_now(), "discovery_mode": "curated_fallback" if used_fallback else "ai",
+        "observation_theme": discovered.observation_theme, "generation_ms": round((time.perf_counter() - started) * 1000),
         "daily_remaining": daily_remaining, "saved_tickers": [], "is_demo": False,
         **({"ai_usage": token_usage, "ai_cost_usd": ai_cost_usd(token_usage)} if token_usage else {}),
+        **(extra or {}),
     }
-    await db.ideas.insert_one(doc)
+    await db.ideas.insert_one(dict(doc))
+    return doc
+
+
+@router.post("/ideas", response_model=IdeaResponse)
+async def create_idea(payload: IdeaCreate, request: Request, response: Response):
+    session_id = ensure_session(request, response)
+    daily_remaining = await _consume_daily_allowance(request, session_id)
+    doc = await build_idea(payload.observation, session_id, input_mode=payload.input_mode, daily_remaining=daily_remaining)
+    idea_id, submitted_at, generation_ms, discovery_mode = doc["id"], doc["submitted_at"], doc["generation_ms"], doc["discovery_mode"]
+    discovered_theme = doc["observation_theme"]
     await db.sessions.update_one(
         {"id": session_id},
         {"$setOnInsert": {"id": session_id, "created_at": submitted_at, "is_demo": False}, "$set": {"last_seen_at": submitted_at}},
@@ -161,7 +167,7 @@ async def create_idea(payload: IdeaCreate, request: Request, response: Response)
     )
     await db.engagement_events.insert_one({
         "id": str(uuid.uuid4()), "event_name": "idea_created", "idea_id": idea_id,
-        "session_id": session_id, "properties": {"generation_ms": generation_ms, "discovery_mode": discovery_mode, "theme": discovered.observation_theme},
+        "session_id": session_id, "properties": {"generation_ms": generation_ms, "discovery_mode": discovery_mode, "theme": discovered_theme},
         "created_at": submitted_at,
     })
     return IdeaResponse(**doc)

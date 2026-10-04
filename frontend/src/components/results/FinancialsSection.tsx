@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 
 import { useEngagement } from "@/hooks/useEngagement";
+import { LessonLink } from "@/components/Video";
 import { crore, fundamentalsQuery, lossOnly, signedPct, tone } from "@/lib/fundamentals";
 import type { CompanyInsight, FinancialLine, FinancialLineKey, FinancialPoint } from "@/lib/types";
 
@@ -59,7 +60,7 @@ export function FinancialsSection({ company, ideaId }: { company: CompanyInsight
     {facts.isLoading ? <div className="fin-rows" data-testid="financials-loading">{ORDER.map((item) => <div className="fin-row skeleton" key={item.key}><i /><i /><i /></div>)}</div>
       : !hasAny ? <p className="detail-unavailable" data-testid="financials-unavailable">Live financials unavailable right now. Nothing is being estimated.</p>
       : <>
-        {lesson && <p className="fin-lesson" data-testid="financials-lesson">{lesson}</p>}
+        {lesson && <p className="fin-lesson" data-testid="financials-lesson">{lesson} <LessonLink slug="cash-flow" number={3} testId="financials-lesson-link" /></p>}
         <div className="fin-rows" data-testid="financials-rows">{ORDER.map(({ key, label }) => {
           const line = lines.find((item) => item.key === key);
           const points = line ? series(line) : [];
@@ -78,7 +79,7 @@ export function FinancialsSection({ company, ideaId }: { company: CompanyInsight
               const previous = points[index - 1];
               const yoy = previous && previous.value > 0 ? (point.value / previous.value - 1) * 100 : null;
               return <tr key={point.as_of}><td>{point.label}<small>{point.as_of}</small></td><td className={lossOnly(point.value)}>{crore(point.value)}</td><td className={tone(yoy)}>{index === 0 ? "—" : yoy === null ? "n/a" : signedPct(yoy)}</td></tr>;
-            })}</tbody></table>}
+            })}</tbody><caption><LessonLink slug="balance-sheet" number={4} label="Reading annual figures" testId={`financials-years-lesson-${key}`} /></caption></table>}
           </div>;
         })}</div>
       </>}

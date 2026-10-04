@@ -198,3 +198,38 @@ export interface CompanyFundamentals {
 }
 export interface PeerGroup { ticker: string; peers: Peer[] }
 export interface PeerGroupsResponse { idea_id: string; status: "ready" | "unavailable"; groups: PeerGroup[] }
+
+export interface LessonModule { key: string; number: number; title: string; subtitle: string }
+export interface Lesson {
+  number: number; slug: string; module: string; title: string; promise: string; key_idea: string;
+  paragraphs: string[]; example: string; checks: string[]; metric: string; duration: string;
+  youtube_url: string; reel_url: string; published: boolean; is_tax: boolean; last_checked: string;
+}
+export interface LearnResponse { modules: LessonModule[]; lessons: Lesson[]; watched: string[] }
+export interface SiteVideos { landing: string; friend: string }
+export interface TrendingClue { id: string; date: string; observation: string; source: string; source_url: string | null; idea_id: string | null; tickers: string[]; hidden: boolean }
+export interface TrendingDay { date: string; status: "fresh" | "previous" | "empty"; clues: TrendingClue[]; archive_dates: string[] }
+export interface TrendingLogItem { title: string; source: string; picked: boolean; reason: string }
+export interface TrendingLogResponse { date: string; items: TrendingLogItem[]; clues: TrendingClue[] }
+export interface AccountResponse { signed_in: boolean; email: string | null; updates_opt_in: boolean }
+export interface SignInRequested { sent: boolean; email: string }
+export interface Holding {
+  id: string; ticker: string; exchange: "NSE" | "BSE"; company_name: string; sector: string; units: number; invested: number;
+  first_bought: string; note: string; change_mind: string; check_back: string | null; price: number | null; value: number | null;
+  gain: number | null; gain_pct: number | null; holding_days: number;
+}
+export interface PortfolioPoint { date: string; value: number; nifty: number }
+export interface SectorShare { sector: string; percent: number }
+export interface Portfolio {
+  id: string; name: string; start_cash: number; cash: number; value: number; gain: number; gain_pct: number;
+  holdings: Holding[]; series: PortfolioPoint[]; sector_mix: SectorShare[]; due_check_backs: string[]; created_at: string;
+}
+export interface PortfolioSummary { id: string; name: string; holdings: number; cash: number }
+export interface PortfolioList { portfolios: PortfolioSummary[]; limit: number }
+export interface SellResponse { proceeds: number; short_term_gain: number; long_term_gain: number; portfolio: Portfolio }
+export interface PartnerBias { name: string; why: string }
+export interface PartnerReply { supported: string[]; assumptions: string[]; biases: PartnerBias[]; questions: string[]; evidence_to_change: string; lesson_slug: string; advice_redirected: boolean }
+export interface PartnerTurn { role: "user" | "partner"; text: string | null; reply: PartnerReply | null }
+export interface PartnerConversation { id: string; ticker: string; company_name: string; turns: PartnerTurn[]; remaining_today: number; max_turns: number }
+/** A company anyone can add to a practice portfolio or discuss with the thinking partner. */
+export interface CompanyRef { ticker: string; exchange: "NSE" | "BSE"; company_name: string; sector?: string; idea_id?: string }

@@ -8,6 +8,9 @@ import { apiGet } from "@/lib/api";
 import { METRICS, fundamentalsQuery } from "@/lib/fundamentals";
 import type { MetricKey } from "@/lib/fundamentals";
 import { slug } from "@/lib/performance";
+import { AddToPortfolioButton } from "@/components/AddToPortfolio";
+import { LessonLink } from "@/components/Video";
+import { LESSON_FOR } from "@/lib/learn";
 import type { CompanyFundamentals, CompanyInsight, Peer, PeerGroupsResponse } from "@/lib/types";
 
 const HINT_KEY = "aaspaas-peer-swipe-hint";
@@ -86,6 +89,7 @@ export function PeerTable({ ideaId, companies, onOpenCompany }: { ideaId: string
         <div><span className="mono-label">{explainer.label}{explainer.tag ? ` · ${explainer.tag}` : ""}</span><button type="button" onClick={() => setMetric(null)} aria-label="Close explainer" data-testid="peer-explainer-close"><X size={14} /></button></div>
         <p data-testid="peer-explainer-what">{explainer.what}</p>
         <p className="peer-explainer-why" data-testid="peer-explainer-why">{explainer.why}</p>
+        {LESSON_FOR[explainer.key] && <LessonLink slug={LESSON_FOR[explainer.key].slug} number={LESSON_FOR[explainer.key].number} testId="peer-explainer-lesson" />}
       </div>}
       {yahooDown && <p className="peer-unavailable" data-testid="peer-data-unavailable">Live data unavailable right now. Names are shown; no figure is estimated.</p>}
       <div className="peer-scroll-wrap">
@@ -97,7 +101,7 @@ export function PeerTable({ ideaId, companies, onOpenCompany }: { ideaId: string
           </tr></thead>
           {groups.map(({ company, peers: list }) => <tbody key={company.ticker} className="peer-group" data-testid={`peer-group-${slug(company.ticker)}`}>
             <tr className="peer-row focus" data-testid={`peer-row-${slug(company.ticker)}`}>
-              <th scope="row" className="peer-sticky"><button type="button" className="peer-name" onClick={() => onOpenCompany(company.ticker)} data-testid={`peer-open-${slug(company.ticker)}`}><strong>{company.company_name}</strong><span>{company.exchange} · {company.ticker} <ArrowRight size={10} /></span></button></th>
+              <th scope="row" className="peer-sticky"><button type="button" className="peer-name" onClick={() => onOpenCompany(company.ticker)} data-testid={`peer-open-${slug(company.ticker)}`}><strong>{company.company_name}</strong><span>{company.exchange} · {company.ticker} <ArrowRight size={10} /></span></button><AddToPortfolioButton compact company={{ ticker: company.ticker, exchange: company.exchange, company_name: company.company_name, sector: company.sector }} testId={`peer-add-${slug(company.ticker)}`} /></th>
               <MetricCells row={{ ticker: company.ticker, exchange: company.exchange, name: company.company_name, peer: null }} data={factsByTicker.get(company.ticker)?.data} loading={Boolean(factsByTicker.get(company.ticker)?.isLoading)} />
             </tr>
             {list === null && peers.isLoading && <tr className="peer-row peer pending" data-testid={`peer-finding-${slug(company.ticker)}`}><th scope="row" className="peer-sticky"><span className="peer-finding">Finding listed rivals…</span></th>{METRICS.map((item) => <td key={item.key} className="peer-cell"><i className="peer-skeleton" /></td>)}</tr>}
@@ -107,7 +111,7 @@ export function PeerTable({ ideaId, companies, onOpenCompany }: { ideaId: string
               const row = { ticker: peer.ticker, exchange: peer.exchange, name: peer.company_name, peer };
               const open = reason === peer.ticker;
               return <tr className="peer-row peer" key={peer.ticker} data-testid={`peer-row-${slug(peer.ticker)}`}>
-                <th scope="row" className="peer-sticky"><button type="button" className="peer-name" onClick={() => toggleReason(peer.ticker, company.ticker)} aria-expanded={open} data-testid={`peer-reason-toggle-${slug(peer.ticker)}`}><strong>{peer.company_name}</strong><span>{peer.exchange} · {peer.ticker} · rival</span></button>{open && <p className="peer-reason" data-testid={`peer-reason-${slug(peer.ticker)}`}><em>AI context · why it’s a rival</em>{peer.reason}</p>}</th>
+                <th scope="row" className="peer-sticky"><button type="button" className="peer-name" onClick={() => toggleReason(peer.ticker, company.ticker)} aria-expanded={open} data-testid={`peer-reason-toggle-${slug(peer.ticker)}`}><strong>{peer.company_name}</strong><span>{peer.exchange} · {peer.ticker} · rival</span></button>{open && <p className="peer-reason" data-testid={`peer-reason-${slug(peer.ticker)}`}><em>AI context · why it’s a rival</em>{peer.reason}</p>}<AddToPortfolioButton compact company={{ ticker: peer.ticker, exchange: peer.exchange, company_name: peer.company_name, sector: company.sector }} testId={`peer-add-${slug(peer.ticker)}`} /></th>
                 <MetricCells row={row} data={factsByTicker.get(peer.ticker)?.data} loading={Boolean(factsByTicker.get(peer.ticker)?.isLoading)} />
               </tr>;
             })}

@@ -21,13 +21,14 @@ export function ClueCard({ clue, onUse }: { clue: TrendingClue; onUse?: (text: s
   </article>;
 }
 
-export function TrendingStrip({ onUse }: { onUse: (text: string) => void }) {
+export function TrendingStrip({ onUse, compact = false }: { onUse: (text: string) => void; compact?: boolean }) {
   const today = useQuery(todayQuery);
   const { track } = useEngagement();
   useEffect(() => { if (today.data?.clues.length) track({ event_name: "trending_strip_viewed", properties: { count: today.data.clues.length } }); }, [today.data?.date]);
+  if (today.isLoading) return <section className={compact ? "trending-strip compact" : "trending-strip"} data-testid="trending-strip-loading"><div className="strip-head"><span className="mono-label">TODAY PEOPLE ARE NOTICING</span></div><div className="trending-row">{[0, 1, 2].map((i) => <div key={i} className="clue-card skeleton" />)}</div></section>;
   if (!today.data?.clues.length) return null;
-  return <section className="trending-strip" data-testid="trending-strip">
-    <div className="trending-head"><span className="mono-label">{today.data.status === "fresh" ? "TODAY PEOPLE ARE NOTICING" : `PEOPLE WERE NOTICING · ${today.data.date}`}</span><a href="/today" data-testid="trending-see-all">All clues & archive <ArrowRight size={12} /></a></div>
+  return <section className={compact ? "trending-strip compact" : "trending-strip"} data-testid="trending-strip">
+    <div className="strip-head"><span className="mono-label">{today.data.status === "fresh" ? "TODAY PEOPLE ARE NOTICING" : `PEOPLE WERE NOTICING · ${today.data.date}`}</span><a href="/today" data-testid="trending-see-all">All clues & archive <ArrowRight size={12} /></a></div>
     <div className="trending-row">{today.data.clues.map((clue) => <ClueCard key={clue.id} clue={clue} onUse={onUse} />)}</div>
   </section>;
 }

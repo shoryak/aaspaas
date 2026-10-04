@@ -110,6 +110,17 @@ class CodeVerify(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
 
 
+class PasswordAuth(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+    updates: bool = False
+
+
+class GoogleSession(BaseModel):
+    session_id: str = Field(min_length=8, max_length=300)
+    updates: bool = False
+
+
 class Holding(BaseModel):
     id: str
     ticker: str

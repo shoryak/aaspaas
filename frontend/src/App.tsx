@@ -1,9 +1,9 @@
 import { Suspense, lazy } from "react";
-import { Navigate, Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import Home from "@/pages/Home";
 import Discoveries from "@/pages/Discoveries";
 import { Toaster } from "@/components/ui/sonner";
-import { AccountProvider } from "@/components/AccountProvider";
+import { AccountProvider, GoogleCallback } from "@/components/AccountProvider";
 import { PendingAdd } from "@/components/AddToPortfolio";
 import { LearnHub, LessonPage } from "@/pages/Learn";
 import PortfolioPage from "@/pages/Portfolio";
@@ -15,9 +15,10 @@ const STUDIO_PATH = import.meta.env.VITE_STUDIO_PATH as string | undefined;
 
 // One <Route> per page in src/pages; BrowserRouter already wraps this in main.tsx.
 export default function App() {
+  const location = useLocation(); // reactive hash: Google returns with #session_id=…
   return (
     <AccountProvider>
-      <Routes>
+      {location.hash.includes("session_id=") ? <GoogleCallback /> : <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/discoveries" element={<Discoveries />} />
         <Route path="/learn" element={<LearnHub />} />
@@ -27,7 +28,7 @@ export default function App() {
         <Route path="/portfolio" element={<PortfolioPage />} />
         {STUDIO_PATH && <Route path={STUDIO_PATH} element={<Suspense fallback={null}><Admin /></Suspense>} />}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      </Routes>}
       <PendingAdd />
       <Toaster />
     </AccountProvider>

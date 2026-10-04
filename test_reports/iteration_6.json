@@ -1,0 +1,67 @@
+{
+  "iteration": 6,
+  "summary": "passed=8 failed=0 flaky=0 blocked=0 test_error=0 across 8 artifacts covering both acceptance_matrix criteria (6 browser checks + 2 backend test files, re-run from iteration_5's artifacts). The previously-reported bug (results page header tab bar not wrapping/uniform at 390px) is now FIXED and verified.",
+  "passed": 8,
+  "failed": 0,
+  "bugs": [],
+  "action_items": [],
+  "retest_needed": false,
+  "checks": [
+    {
+      "criterion": "Top links uniform and clearly separated (previously failed on results page)",
+      "name": "header-nav-uniform-tabs",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Re-ran persisted check: /, /learn, /today, /portfolio, and /?idea=2a3c3928-6c73-4855-b88c-94adb1d60d01&shared=1 (results page) all show a full-width header-nav tab bar with 4 unclipped tabs at 390px, 0px horizontal overflow, matching font/size/colour across pages. /discoveries correctly has no HeaderNav (allowed exception). Desktop 1280 results header also shows the same pill tab bar. Bug from iteration_5 (191px overflow, Practice tab clipped against comparison-header) is resolved."
+    },
+    {
+      "criterion": "Regression: Today strip above the fold on '/'",
+      "name": "daily-clues-strip-and-today-page",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "trending-strip visible above landing-headline at 390x844 and 1280x800; clue card bottom edge within viewport (no scroll needed); 'Open the read' and 'Use as my own clue' interactions work; /today lists clue cards."
+    },
+    {
+      "criterion": "Regression: Learn row above the fold on '/'",
+      "name": "learn-strip-above-fold",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "learn-strip ('LEARN IN 6 MINUTES · FREE') sits directly under trending-strip and above landing-headline, within 390px viewport fold. Lesson chip opens lesson-page; 'All N lessons' opens learn-hub."
+    },
+    {
+      "criterion": "Regression: sign-in sheet offers Google, password and email code",
+      "name": "signin-sheet-google-and-tabs",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "signin-sheet shows Google button, email/password tabs (Sign in/Create account/Email me a code), 'Continue with Google' navigates to https://auth.emergentagent.com/?redirect=... (not completed, per spec_deviations). 2 benign 404 console errors (asset probing), no functional impact."
+    },
+    {
+      "criterion": "Regression: password create/sign-in/sign-out, wrong password error",
+      "name": "password-signup-and-signin-flow",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "New account created, portfolio created while signed in, signed out, signed back in with same credentials; wrong password rejected with error text; duplicate registration rejected (409); seeded pw-user@aaspaas.dev/chai-stall-2026 signs in successfully. Console 401/400/409/404 entries are expected negative-path responses (wrong password, duplicate register), not errors."
+    },
+    {
+      "criterion": "Regression: password auth API (register/login/logout, wrong password, seeded account)",
+      "name": "test_tscheck_password_auth.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "pytest: 3 tests passed - POST /auth/register new tscheck- email -> 200 signed_in:true, duplicate register -> 409; POST /auth/login wrong password -> 400; POST /auth/login pw-user@aaspaas.dev/chai-stall-2026 -> 200 signed_in:true, GET /auth/me confirms, POST /auth/logout -> signed_in:false."
+    },
+    {
+      "criterion": "Regression: Google callback invalid-session handling (UI)",
+      "name": "google-callback-invalid-session",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Visiting /learn#session_id=invalid-test-session shows toast matching /Google sign-in didn.t complete/i, #session_id removed from URL, learn-hub renders normally underneath. One expected 400 console entry from the failed exchange call."
+    },
+    {
+      "criterion": "Regression: Google callback invalid-session handling (API)",
+      "name": "test_tscheck_google_callback_invalid_session.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "pytest: 2 tests passed - POST /auth/google {session_id:'tscheck-invalid-test-session'} -> 400 \"didn't complete\"/\"try again\", no cookie set; GET /auth/me afterwards -> 200 signed_in:false."
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+{
+  "iteration": 5,
+  "summary": "passed=7 failed=1 flaky=0 blocked=0 test_error=0 across 8 artifacts covering all 6 acceptance_matrix criteria (6 browser checks + 2 backend test files). One real bug found: the results/comparison page header does not apply the mobile tab-bar-wraps-below-wordmark CSS rule that every other page uses, so on 390px the nav clips and the page overflows horizontally.",
+  "passed": 7,
+  "failed": 1,
+  "bugs": [
+    {
+      "criterion": "Top links uniform and clearly separated",
+      "severity": "medium",
+      "detail": "On the results/share page (/?idea=2a3c3928-6c73-4855-b88c-94adb1d60d01&shared=1), at 390px the HeaderNav tab bar is NOT a full-width row under the wordmark like it is on /, /learn, /today, /portfolio -- it stays inline next to the wordmark and the Practice tab is visually clipped against the right edge, with the whole document overflowing horizontally by 191px (document.scrollWidth - clientWidth = 191). Root cause: frontend/src/index.css has `@media (max-width: 860px) { .site-header { flex-wrap: wrap; ... } .site-header .header-nav { flex: 1 1 100%; } }` which only targets `.site-header`; the results page uses a separate `.comparison-header` class (components/results/ComparisonExperience.tsx) that has no equivalent mobile media-query rule, so it never wraps. Backend is healthy (GET /api/ideas/2a3c3928-6c73-4855-b88c-94adb1d60d01?shared=true -> 200) -- this is a frontend-only CSS bug, reproduced twice (not flaky).",
+      "evidence": "Browser check 'header-nav-uniform-tabs' failed twice in a row with 'Horizontal page overflow on results page: 191px'; failure screenshot shows the PRACTICE tab's label clipped at the viewport edge next to the wordmark instead of wrapping to a new row. Cross-check: curl -s -o /dev/null -w '%{http_code}' 'http://localhost:8001/api/ideas/2a3c3928-6c73-4855-b88c-94adb1d60d01?shared=true' -> 200 (API healthy)."
+    }
+  ],
+  "action_items": [
+    {
+      "type": "note",
+      "severity": "low",
+      "detail": "Criterion 2's example lesson slug '/learn/idea-to-ticker' does not exist in this build (GET /api/lessons returns revenue-vs-profit, margins, cash-flow, balance-sheet, roce, roe, debt, moat, management, quality-of-growth, demat-and-brokers, stocks-funds-etfs, sip, fd-ppf-epf-nps, tax-on-shares, tax-dividends-funds, tax-regimes-elss, fno-intraday -- no idea-to-ticker). The browser check (learn-strip-above-fold) was written to open the first real lesson chip instead; flagging the mismatch between the briefing's example and the actual lesson set for visibility, not a bug."
+    },
+    {
+      "type": "note",
+      "severity": "low",
+      "detail": "Three pre-existing backend test files unrelated to this iteration's acceptance_matrix still fail/flake when the full suite is run together: test_tscheck_rate_limit_wall.py::test_fourth_submission_hits_daily_wall (depends on shared external daily-quota state from browser runs this session), test_tscheck_share_link_preview.py::test_share_link_preview_has_og_tags_and_redirect (asserts a redirect query string the share page no longer emits), and test_tscheck_email_signin_code.py (passes alone, occasionally races under xdist parallel execution due to Secure-cookie semantics over plain HTTP). None are in this iteration's matrix; left untouched, noted for visibility only."
+    }
+  ],
+  "retest_needed": true,
+  "checks": [
+    {
+      "criterion": "Today clues visible immediately on entering the site",
+      "name": "daily-clues-strip-and-today-page",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "On '/' (tour flags preset, 390x844): trending-strip visible above landing-headline (bbox y comparison); first clue card's bottom edge <= 844px (no scroll) and also <= 800px at 1280x800 desktop. Swipe/open/use interactions: 'Open the read' navigates without issuing a new POST /api/ideas; 'Use as my own clue' fills observation-textarea; /today lists clue cards."
+    },
+    {
+      "criterion": "Learn visible immediately on entering the site",
+      "name": "learn-strip-above-fold",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "learn-strip with 'LEARN IN 6 MINUTES · FREE' sits directly under trending-strip and above landing-headline, bottom edge <= 844px at 390px viewport. Tapping a lesson chip opens lesson-page; 'All N lessons' opens learn-hub. Re-ran successfully against the public ingress https://idea-to-ticker.preview.emergentagent.com too."
+    },
+    {
+      "criterion": "Top links uniform and clearly separated",
+      "name": "header-nav-uniform-tabs",
+      "lane": "browser",
+      "status": "failed",
+      "evidence": "/, /learn, /today, /portfolio all show header-nav with 4 unclipped tabs, aria-current on the active tab, a separate sign-in/account control, and 0px overflow at 390px. /discoveries correctly has no HeaderNav at all (allowed by the criterion's own 'if it uses HeaderNav' clause -- its page ships a minimal custom header). The results page (/?idea=...&shared=1) FAILS: 191px horizontal overflow at 390px, Practice tab clipped. See bugs[]."
+    },
+    {
+      "criterion": "Sign-in sheet offers Google, password and email code",
+      "name": "signin-sheet-google-and-tabs",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "signin-sheet shows 'Continue with Google', 'or with email' divider, 3 tabs (Sign in/Create account/Email me a code), email input, password input hidden on the code tab, updates checkbox aria-checked=false/data-unchecked. Clicking 'Continue with Google' navigates to https://auth.emergentagent.com/?redirect=<encoded current page url> (navigation asserted, not completed)."
+    },
+    {
+      "criterion": "Email + password sign-up and sign-in",
+      "name": "password-signup-and-signin-flow",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "qa-pw-<timestamp>@aaspaas.dev + 8+ char password: Create account -> signed-in toast + account-menu-trigger visible -> created a tscheck- practice portfolio while signed in -> signed out -> same credentials via 'Sign in' tab -> signed in again. Wrong password -> error text shown, stays signed out. Registering the same email again -> 'already' error shown. Existing seeded pw-user@aaspaas.dev / chai-stall-2026 also signs in."
+    },
+    {
+      "criterion": "Email + password sign-up and sign-in",
+      "name": "test_tscheck_password_auth.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "POST /auth/register (new tscheck-pw-* email) -> 200 signed_in:true; repeat register same email -> 409 'already has an account'; fresh client POST /auth/login with raw Set-Cookie (Secure flag over http needed explicit cookie attach) -> 200, GET /auth/me -> signed_in:true, POST /auth/logout -> signed_in:false. test_login_with_wrong_password_is_rejected: POST /auth/login wrong password -> 400 \"didn't match\", /auth/me stays signed_in:false. test_existing_seeded_password_account_signs_in: POST /auth/login pw-user@aaspaas.dev/chai-stall-2026 -> 200 signed_in:true. 3/3 tests passed."
+    },
+    {
+      "criterion": "Google callback handling",
+      "name": "google-callback-invalid-session",
+      "lane": "browser",
+      "status": "passed",
+      "evidence": "Visiting /learn#session_id=invalid-test-session shows toast text matching /Google sign-in didn.t complete/i, the #session_id hash is removed from the URL, and learn-hub renders normally underneath (no stuck blank screen)."
+    },
+    {
+      "criterion": "Google callback handling",
+      "name": "test_tscheck_google_callback_invalid_session.py",
+      "lane": "backend",
+      "status": "passed",
+      "evidence": "POST /auth/google {session_id:'tscheck-invalid-test-session'} -> 400 detail containing \"didn't complete\"/\"try again\", no aaspaas_account cookie set. Second test: same invalid exchange on a fresh client, then GET /auth/me -> 200 signed_in:false. 2/2 tests passed."
+    }
+  ]
+}

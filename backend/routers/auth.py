@@ -7,6 +7,7 @@ from datetime import timedelta
 from html import escape
 from urllib.parse import quote
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import RedirectResponse
 
@@ -14,7 +15,7 @@ from lib.accounts import ACCOUNT_COOKIE, ACCOUNT_TTL, current_account, token_has
 from lib.db import db
 from lib.rate_limit import client_ip
 from lib.session import SESSION_COOKIE, ensure_session, utc_now
-from models.learning import AccountResponse, CodeVerify, SignInRequest, SignInRequested
+from models.learning import AccountResponse, CodeVerify, GoogleSession, PasswordAuth, SignInRequest, SignInRequested
 
 router = APIRouter(tags=["auth"])
 logger = logging.getLogger(__name__)
@@ -53,15 +54,33 @@ def _email_html(link: str, code: str) -> str:
     )
 
 
-async def _complete_sign_in(request: Request, response: Response, row: dict, method: str) -> None:
+def _hash_password(password: str, salt: bytes | None = None) -> str:
+    salt = salt or secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode(), salt=salt, n=2**14, r=8, p=1, dklen=32)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def _password_ok(password: str, stored: str | None) -> bool:
+    if not stored or not stored.startswith("scrypt$"):
+        return False
+    _, salt, _digest = stored.split("$")
+    return secrets.compare_digest(_hash_password(password, bytes.fromhex(salt)), stored)
+
+
+async def _complete_sign_in(request: Request, response: Response, *, email: str, method: str, updates: bool = False, location: str | None = None, request_id: str | None = None, password_hash: str | None = None) -> dict:
     now = utc_now()
     session_id = ensure_session(request, response)
-    account = await db.accounts.find_one({"email": row["email"]})
+    account = await db.accounts.find_one({"email": email})
     if not account:
-        account = {"id": str(uuid.uuid4()), "email": row["email"], "primary_session_id": session_id, "created_at": now, "updates_opt_in": False, "updates_consented_at": None}
-        await db.accounts.insert_one(account)
-    if row.get("updates") and not account.get("updates_opt_in"):
-        await db.accounts.update_one({"id": account["id"]}, {"$set": {"updates_opt_in": True, "updates_consented_at": now, "updates_consent_location": row.get("location")}})
+        account = {"id": str(uuid.uuid4()), "email": email, "primary_session_id": session_id, "created_at": now, "updates_opt_in": False, "updates_consented_at": None,
+                   "password_hash": password_hash, "email_verified": method != "password"}
+        await db.accounts.insert_one(dict(account))
+    elif method != "password" and not account.get("email_verified"):
+        # The inbox owner just proved ownership: drop any password set by an unverified sign-up and revoke its devices.
+        await db.accounts.update_one({"id": account["id"]}, {"$set": {"email_verified": True, "password_hash": None}})
+        await db.account_tokens.delete_many({"account_id": account["id"]})
+    if updates and not account.get("updates_opt_in"):
+        await db.accounts.update_one({"id": account["id"]}, {"$set": {"updates_opt_in": True, "updates_consented_at": now, "updates_consent_location": location}})
     primary = account["primary_session_id"]
     if session_id != primary:  # join this browser's anonymous history to the account
         for collection in ("ideas", "partner_chats", "lesson_progress"):
@@ -69,10 +88,59 @@ async def _complete_sign_in(request: Request, response: Response, row: dict, met
         await db.sessions.update_one({"id": session_id}, {"$set": {"merged_into": primary}})
     token = secrets.token_urlsafe(32)
     await db.account_tokens.insert_one({"token_hash": token_hash(token), "account_id": account["id"], "created_at": now, "expires_at": now + ACCOUNT_TTL, "method": method})
-    await db.signin_requests.update_one({"id": row["id"]}, {"$set": {"used_at": now, "method": method}})
-    await db.engagement_events.insert_one({"id": str(uuid.uuid4()), "event_name": "signin_completed", "session_id": primary, "properties": {"method": method, "updates": bool(row.get("updates"))}, "created_at": now})
+    if request_id:
+        await db.signin_requests.update_one({"id": request_id}, {"$set": {"used_at": now, "method": method}})
+    await db.engagement_events.insert_one({"id": str(uuid.uuid4()), "event_name": "signin_completed", "session_id": primary, "properties": {"method": method, "updates": updates}, "created_at": now})
     response.set_cookie(SESSION_COOKIE, primary, httponly=True, samesite="lax", secure=_secure(), max_age=31536000)
     response.set_cookie(ACCOUNT_COOKIE, token, httponly=True, samesite="lax", secure=_secure(), max_age=int(ACCOUNT_TTL.total_seconds()))
+    return await db.accounts.find_one({"id": account["id"]}, {"_id": 0})
+
+
+def _account_response(account: dict) -> AccountResponse:
+    return AccountResponse(signed_in=True, email=account["email"], updates_opt_in=bool(account.get("updates_opt_in")))
+
+
+async def _guard_failures(email: str, request: Request) -> None:
+    hour_ago = utc_now() - timedelta(hours=1)
+    if await db.login_failures.count_documents({"email": email, "created_at": {"$gte": hour_ago}}) >= 10 or await db.login_failures.count_documents({"ip_hash": _hash("ip", client_ip(request)), "created_at": {"$gte": hour_ago}}) >= 30:
+        raise HTTPException(status_code=429, detail="Too many attempts. Try again in an hour, or use the email code.")
+
+
+@router.post("/auth/register", response_model=AccountResponse)
+async def register(payload: PasswordAuth, request: Request, response: Response):
+    email = payload.email.strip().lower()
+    await _guard_failures(email, request)
+    existing = await db.accounts.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=409, detail="This email already has an account. Sign in instead — or use Google or the email code if you never set a password.")
+    account = await _complete_sign_in(request, response, email=email, method="password", updates=payload.updates, location="password", password_hash=_hash_password(payload.password))
+    return _account_response(account)
+
+
+@router.post("/auth/login", response_model=AccountResponse)
+async def password_login(payload: PasswordAuth, request: Request, response: Response):
+    email = payload.email.strip().lower()
+    await _guard_failures(email, request)
+    account = await db.accounts.find_one({"email": email})
+    if not account or not _password_ok(payload.password, account.get("password_hash")):
+        await db.login_failures.insert_one({"email": email, "ip_hash": _hash("ip", client_ip(request)), "created_at": utc_now()})
+        raise HTTPException(status_code=400, detail="Email or password didn't match. Accounts made with Google or the email code can sign in that way.")
+    return _account_response(await _complete_sign_in(request, response, email=email, method="password", updates=payload.updates, location="password"))
+
+
+@router.post("/auth/google", response_model=AccountResponse)
+async def google_sign_in(payload: GoogleSession, request: Request, response: Response):
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            result = await client.get("https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data", headers={"X-Session-ID": payload.session_id})
+        result.raise_for_status()
+        email = (result.json().get("email") or "").strip().lower()
+    except Exception as exc:
+        logger.warning("Google sign-in exchange failed: %s", exc)
+        raise HTTPException(status_code=400, detail="Google sign-in didn't complete. Please try again.")
+    if not email:
+        raise HTTPException(status_code=400, detail="Google didn't share an email address.")
+    return _account_response(await _complete_sign_in(request, response, email=email, method="google", updates=payload.updates, location="google"))
 
 
 @router.get("/auth/me", response_model=AccountResponse)
@@ -118,7 +186,7 @@ async def verify_link(request: Request, token: str = Query(min_length=10, max_le
         return RedirectResponse("/?signin=expired", status_code=303)
     target = row.get("return_to", "/")
     redirect = RedirectResponse(f"{target}{'&' if '?' in target else '?'}signin=done", status_code=303)
-    await _complete_sign_in(request, redirect, row, "link")
+    await _complete_sign_in(request, redirect, email=row["email"], method="link", updates=bool(row.get("updates")), location=row.get("location"), request_id=row["id"])
     return redirect
 
 
@@ -132,8 +200,7 @@ async def verify_code(payload: CodeVerify, request: Request, response: Response)
         attempts = row.get("attempts", 0) + 1
         await db.signin_requests.update_one({"id": row["id"]}, {"$set": {"attempts": attempts, **({"expires_at": utc_now()} if attempts >= MAX_CODE_ATTEMPTS else {})}})
         raise HTTPException(status_code=400, detail="That code didn't match." if attempts < MAX_CODE_ATTEMPTS else "Too many wrong codes. Request a new sign-in email.")
-    await _complete_sign_in(request, response, row, "code")
-    return AccountResponse(signed_in=True, email=email, updates_opt_in=bool(row.get("updates")))
+    return _account_response(await _complete_sign_in(request, response, email=email, method="code", updates=bool(row.get("updates")), location=row.get("location"), request_id=row["id"]))
 
 
 @router.post("/auth/logout", response_model=AccountResponse)

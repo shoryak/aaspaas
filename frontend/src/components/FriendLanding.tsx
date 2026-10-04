@@ -29,7 +29,7 @@ export function FriendLanding({ idea, observation, onObservation, onSubmit, onOp
   }, [idea.id, idea.companies.length, track]);
 
   return <main className="paper-page friend-page" data-testid="friend-landing-page">{video && videos.data?.friend && <VideoOverlay url={videos.data.friend} title="How Aaspaas works" onClose={() => setVideo(false)} />}
-    <header className="site-header"><a href="/" className="wordmark" data-testid="friend-wordmark">Aaspaas<span>.</span></a><div className="header-actions">{videos.data?.friend && <button type="button" className="studio-link" onClick={() => { setVideo(true); track({ event_name: "launch_video_opened", properties: { placement: "friend" } }); }} data-testid="friend-video-button">▶ How Aaspaas works</button>}<HeaderNav /><a className="studio-link hide-sm" href="/discoveries" data-testid="friend-discoveries-link">My Discoveries</a></div></header>
+    <header className="site-header"><a href="/" className="wordmark" data-testid="friend-wordmark">Aaspaas<span>.</span></a><div className="header-actions">{videos.data?.friend && <button type="button" className="studio-link" onClick={() => { setVideo(true); track({ event_name: "launch_video_opened", properties: { placement: "friend" } }); }} data-testid="friend-video-button">▶ How Aaspaas works</button>}<HeaderNav /></div></header>
     <section className="friend-hero" data-testid="friend-hero">
       <motion.div className="friend-hero-copy" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: .7, ease: EASE }}>
         <span className="mono-label friend-kicker" data-testid="friend-kicker">A FRIEND SENT YOU A CLUE</span>

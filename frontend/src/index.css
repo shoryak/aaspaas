@@ -99,10 +99,11 @@ h1 em, h2 em { color: #b8752a; font-style: italic; }
 .observation-input { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; box-shadow: none; font-family: Georgia, serif; font-size: clamp(22px, 3vw, 29px); line-height: 1.25; margin-top: 13px; min-height: 137px; padding: 0 0 18px; resize: none; }
 .observation-input:focus { border-color: var(--primary); box-shadow: none; }
 .observation-input::placeholder { color: #a6a299; }
-.example-wrap { display: flex; flex-direction: column; gap: 9px; margin: 24px 0 28px; }
+.example-wrap { display: flex; flex-direction: column; gap: 8px; margin: 24px 0 28px; }
 .micro-label { color: var(--muted-foreground); font-size: 9px; }
-.example-chip { background: transparent; border: 0; color: var(--muted-foreground); cursor: pointer; font-size: 12px; line-height: 1.45; padding: 0; text-align: left; transition: color .18s, transform .18s; }
-.example-chip:hover { color: var(--primary); transform: translateX(3px); }
+.example-chip { background: var(--card); border: 1px solid var(--border); border-radius: 999px; color: var(--foreground); cursor: pointer; font-size: 12px; line-height: 1.45; padding: 9px 14px; text-align: left; transition: color .18s, border-color .18s, transform .18s, background-color .18s; }
+.example-chip:hover { background: color-mix(in srgb, var(--primary) 8%, var(--card)); border-color: var(--primary); color: var(--primary); transform: translateX(3px); }
+.example-chip:active { transform: scale(.98); }
 .discover-button { align-items: center; display: flex; gap: 11px; justify-content: center; width: 100%; }
 .how-it-works { border-top: 1px solid var(--border); margin-top: 42px; padding-top: 25px; }
 .explainer-row { display: grid; gap: 14px; grid-template-columns: 28px 1fr; margin-top: 18px; }
@@ -546,6 +547,8 @@ html { text-rendering: optimizeLegibility; }
 .company-card-actions button { justify-content: center; min-height: 42px; width: 100%; }
 .company-card-actions button:last-child { border-color: color-mix(in srgb, #5b4b8a 60%, var(--border)); color: #5b4b8a; }
 .performance-actions { border-top: 1px solid #34363a; margin-top: auto; padding-top: 14px; }
+.performance-actions button:nth-child(2) { background: transparent; border-color: #45474b; color: #efeee8; }
+.performance-actions button:nth-child(2):hover { background: #26282c; }
 .performance-actions button:last-child { background: #282431; border-color: #574b75; color: #c5b9e4; }
 .performance-disclaimer { border-left: 2px solid #b8752a; color: var(--muted-foreground); font-size: 9px; line-height: 1.55; margin: 20px 0 0; max-width: 910px; padding: 6px 0 6px 12px; }
 .quality-transition { border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); margin: 0 auto 0; max-width: 1380px; padding: 62px clamp(22px, 5vw, 72px) 53px; }
@@ -915,10 +918,11 @@ html { text-rendering: optimizeLegibility; }
 .performance-grid .performance-disclaimer { grid-column: 1 / -1; }
 @media (max-width: 700px) {
   html.snap-results { scroll-snap-type: y mandatory; }
-  .snap-panel { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; min-height: 100svh; padding: 18px 0; scroll-snap-align: start; scroll-snap-stop: always; }
+  .snap-panel { box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; min-height: 100svh; padding: 18px 0 64px; scroll-snap-align: start; scroll-snap-stop: always; }
+  .snap-panel-tall { justify-content: flex-start; }
+  .snap-panel-compact { min-height: 0; padding-top: 56px; padding-bottom: 96px; }
   .snap-panel > .comparison-header { margin-bottom: auto; }
   .snap-panel > .comparison-intro { margin-bottom: auto; }
-  .performance-grid .snap-panel, .comparison-grid .snap-panel { padding: 18px 0 64px; }
   .performance-grid .performance-disclaimer { margin-top: 14px; }
   .snap-nav { display: block; }
   .snap-dots { display: flex; flex-direction: column; gap: 4px; list-style: none; margin: 0; padding: 0; position: fixed; right: 2px; top: 50%; transform: translateY(-50%); z-index: 30; }
@@ -1069,7 +1073,7 @@ html.tour-tasks-active .snap-next { display: none; }
 .peer-row.pending .peer-finding { animation: peer-pulse 1.4s ease-in-out infinite; }
 .peer-skeleton { animation: peer-pulse 1.4s ease-in-out infinite; background: color-mix(in srgb, var(--foreground) 12%, transparent); border-radius: 2px; display: inline-block; height: 9px; width: 46px; }
 @keyframes peer-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
-.peer-swipe-hint { align-items: center; animation: peer-hint 2.4s ease-in-out infinite; background: #1b1c1e; border-radius: 999px; bottom: 12px; color: #efeee8; display: none; font: 9px ui-monospace, monospace; gap: 4px; letter-spacing: .08em; padding: 7px 11px; pointer-events: none; position: absolute; right: 10px; text-transform: uppercase; z-index: 4; }
+.peer-swipe-hint { align-items: center; animation: peer-hint 2.4s ease-in-out infinite; background: #1b1c1e; border-radius: 999px; top: 58px; color: #efeee8; display: none; font: 9px ui-monospace, monospace; gap: 4px; letter-spacing: .08em; margin: 0 10px 0 auto; padding: 7px 11px; pointer-events: none; position: sticky; text-transform: uppercase; width: fit-content; z-index: 4; }
 .peer-swipe-hint svg { color: #e0a35a; }
 @keyframes peer-hint { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-6px); } }
 .peer-legend { align-items: center; border-top: 1px solid var(--border); color: var(--muted-foreground); display: flex; flex-wrap: wrap; font-size: 11.5px; gap: 6px; margin: 0; padding: 10px 14px; }
@@ -1135,7 +1139,7 @@ html.tour-tasks-active .snap-next { display: none; }
   .peer-sticky { max-width: 148px; min-width: 148px; width: 148px; }
   .peer-name strong { font-size: 15px; }
   .peer-row.peer .peer-name strong { font-size: 13px; }
-  .peer-swipe-hint { display: inline-flex; }
+  .peer-swipe-hint { display: flex; }
   .peer-disclaimer { padding: 0 18px; }
   .peer-legend { font-size: 11px; }
   .fin-row-button { gap: 6px 10px; grid-template-columns: 1fr auto 18px; grid-template-areas: "label latest chev" "spark change chev"; }
@@ -1413,6 +1417,8 @@ html.tour-tasks-active .snap-next { display: none; }
   .landing-top { gap: 10px; padding-left: 16px; padding-right: 0; }
   .landing-top .strip-head { padding-right: 16px; }
   .trending-strip.compact .trending-row { grid-auto-columns: 78%; }
+  .strip-scroll-wrap { position: relative; }
+  .strip-scroll-wrap::after { background: linear-gradient(to right, transparent, color-mix(in srgb, var(--foreground) 38%, transparent)); bottom: 6px; content: ""; pointer-events: none; position: absolute; right: 0; top: 0; width: 46px; }
 }
 
 /* ---------- Sign-in options ---------- */

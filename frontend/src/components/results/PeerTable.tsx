@@ -93,6 +93,7 @@ export function PeerTable({ ideaId, companies, onOpenCompany }: { ideaId: string
       </div>}
       {yahooDown && <p className="peer-unavailable" data-testid="peer-data-unavailable">Live data unavailable right now. Names are shown; no figure is estimated.</p>}
       <div className="peer-scroll-wrap">
+      {hint && <span className="peer-swipe-hint" aria-hidden="true" data-testid="peer-swipe-hint">Swipe for more <ChevronsRight size={13} /></span>}
       <div className="peer-scroll" onScroll={onSwipe} onPointerDown={dismissHint} data-testid="peer-table-scroll">
         <table className="peer-table" data-testid="peer-table">
           <thead><tr>
@@ -118,7 +119,6 @@ export function PeerTable({ ideaId, companies, onOpenCompany }: { ideaId: string
           </tbody>)}
         </table>
       </div>
-      {hint && <span className="peer-swipe-hint" aria-hidden="true" data-testid="peer-swipe-hint">Swipe for more <ChevronsRight size={13} /></span>}
       </div>
       <p className="peer-legend" data-testid="peer-legend"><span className="peer-legend-focus" />From your clue <span className="peer-legend-peer" />Direct rival · tap a name for the AI’s reason · tap a column for what it means</p>
     </div>

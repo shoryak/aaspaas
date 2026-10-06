@@ -28,6 +28,7 @@ export function PlusWaitlist({ onJoined }: { onJoined?: () => void }) {
 export function AddToPortfolioDialog({ company, onClose }: { company: CompanyRef; onClose: () => void }) {
   const queryClient = useQueryClient();
   const list = useQuery(portfoliosQuery);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
   const [target, setTarget] = useState<string>("");
   const [newName, setNewName] = useState("");
   const [amount, setAmount] = useState("10000");
@@ -37,7 +38,8 @@ export function AddToPortfolioDialog({ company, onClose }: { company: CompanyRef
   const [limitHit, setLimitHit] = useState(false);
   const portfolios = list.data?.portfolios ?? [];
   useEffect(() => { if (!target && portfolios.length) setTarget(portfolios[0].id); }, [portfolios.length]);
-  const creating = target === "" || target === "new";
+  useEffect(() => { if (list.isFetched && portfolios.length === 0) setMode("new"); }, [list.isFetched, portfolios.length]);
+  const creating = mode === "new";
   const add = useMutation({
     mutationFn: async () => {
       const id = creating ? (await apiPost<Portfolio>("/portfolios", { name: newName.trim() || "My practice portfolio" })).id : target;
@@ -46,14 +48,18 @@ export function AddToPortfolioDialog({ company, onClose }: { company: CompanyRef
     onSuccess: (portfolio) => { void queryClient.invalidateQueries({ queryKey: ["portfolios"] }); queryClient.setQueryData(["portfolio", portfolio.id], portfolio); toast.success(`Added ${company.company_name} to “${portfolio.name}” with pretend money.`, { action: { label: "Open", onClick: () => { window.location.href = `/portfolio?id=${portfolio.id}`; } } }); onClose(); },
     onError: (error) => { const detail = detailOf(error); if (detail && typeof detail === "object" && detail.code === "plus_limit") setLimitHit(true); else toast.error(typeof detail === "string" ? detail : "Couldn't add it right now."); },
   });
-  const cash = portfolios.find((item) => item.id === target)?.cash ?? 100000;
+  const cash = creating ? 100000 : (portfolios.find((item) => item.id === target)?.cash ?? 100000);
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
     <DialogContent className="add-sheet" data-testid="add-portfolio-dialog">
       <span className="mono-label practice-stamp">PRACTICE · PRETEND MONEY · NO REAL TRADES</span>
       <DialogTitle className="signin-title" data-testid="add-portfolio-title">Add {company.company_name}</DialogTitle>
       <DialogDescription className="signin-copy">Bought at the latest available adjusted close (delayed). Your reason stays with the holding.</DialogDescription>
       {limitHit ? <PlusWaitlist onJoined={onClose} /> : <form className="add-form" onSubmit={(event) => { event.preventDefault(); add.mutate(); }}>
-        <label>Portfolio<select value={target || "new"} onChange={(event) => setTarget(event.target.value)} data-testid="add-portfolio-select">{portfolios.map((item) => <option key={item.id} value={item.id} label={`${item.name} · ${inr(item.cash)} cash`} />)}<option value="new" label="+ New practice portfolio" /></select></label>
+        {portfolios.length > 0 && <div className="signin-tabs" data-testid="add-portfolio-mode-tabs">
+          <button type="button" className={mode === "existing" ? "active" : ""} onClick={() => setMode("existing")} data-testid="add-portfolio-mode-existing">Add to existing</button>
+          <button type="button" className={mode === "new" ? "active" : ""} onClick={() => setMode("new")} data-testid="add-portfolio-mode-new">Create new</button>
+        </div>}
+        {mode === "existing" && portfolios.length > 0 && <label>Portfolio<select value={target} onChange={(event) => setTarget(event.target.value)} data-testid="add-portfolio-select">{portfolios.map((item) => <option key={item.id} value={item.id} label={`${item.name} · ${inr(item.cash)} cash`} />)}</select></label>}
         {creating && <label>Name it<Input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="e.g. Kirana staples" maxLength={40} data-testid="add-portfolio-new-name" /></label>}
         <label>Pretend amount (₹)<Input type="number" min={1} max={cash} step="any" required value={amount} onChange={(event) => setAmount(event.target.value)} data-testid="add-portfolio-amount" /><small>{inr(cash)} pretend cash available</small></label>
         <label>Why I’m adding this<Input required minLength={3} maxLength={200} value={note} onChange={(event) => setNote(event.target.value)} placeholder="e.g. every kirana near me stocks it" data-testid="add-portfolio-note" /></label>

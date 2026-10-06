@@ -29,6 +29,6 @@ export function TrendingStrip({ onUse, compact = false }: { onUse: (text: string
   if (!today.data?.clues.length) return null;
   return <section className={compact ? "trending-strip compact" : "trending-strip"} data-testid="trending-strip">
     <div className="strip-head"><span className="mono-label">{today.data.status === "fresh" ? "TODAY PEOPLE ARE NOTICING" : `PEOPLE WERE NOTICING · ${today.data.date}`}</span><a href="/today" data-testid="trending-see-all">All clues & archive <ArrowRight size={12} /></a></div>
-    <div className="trending-row">{today.data.clues.map((clue) => <ClueCard key={clue.id} clue={clue} onUse={onUse} />)}</div>
+    <div className="strip-scroll-wrap"><div className="trending-row">{today.data.clues.map((clue) => <ClueCard key={clue.id} clue={clue} onUse={onUse} />)}</div></div>
   </section>;
 }

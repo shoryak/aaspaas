@@ -13,9 +13,9 @@ export function LearnStrip() {
   const watched = new Set(learn.data?.watched ?? []);
   return <section className="learn-strip" data-testid="learn-strip">
     <div className="strip-head"><span className="mono-label">LEARN IN 6 MINUTES · FREE</span><a href="/learn" data-testid="learn-strip-all">All {lessons.length} lessons <ArrowRight size={12} /></a></div>
-    <div className="learn-strip-row">{lessons.map((lesson) => <a key={lesson.slug} href={`/learn/${lesson.slug}`} className="learn-chip" onClick={() => track({ event_name: "learn_strip_opened", properties: { slug: lesson.slug } })} data-testid={`learn-chip-${lesson.slug}`}>
+    <div className="strip-scroll-wrap"><div className="learn-strip-row">{lessons.map((lesson) => <a key={lesson.slug} href={`/learn/${lesson.slug}`} className="learn-chip" onClick={() => track({ event_name: "learn_strip_opened", properties: { slug: lesson.slug } })} data-testid={`learn-chip-${lesson.slug}`}>
       <span className="learn-chip-num">{String(lesson.number).padStart(2, "0")}</span>
       <span className="learn-chip-text"><strong>{lesson.title}</strong><small>{watched.has(lesson.slug) ? <><Check size={10} /> watched</> : lesson.youtube_url ? <><PlayCircle size={10} /> {lesson.duration}</> : "notes · video soon"}</small></span>
-    </a>)}</div>
+    </a>)}</div></div>
   </section>;
 }
